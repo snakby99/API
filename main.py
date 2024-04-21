@@ -1,10 +1,15 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel, Field
 import psycopg2
 import re
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 from googletrans import Translator
+from datetime import datetime, timedelta
+from jose import JWTError, jwt
+from datetime import datetime, timedelta
+from fastapi.security import OAuth2PasswordBearer
+from passlib.context import CryptContext
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -14,8 +19,8 @@ translator = Translator()
 mydb = psycopg2.connect(
     host="localhost",
     user="postgres",
-    password="1234",
-    database="Project"
+    password="123456789",
+    database="project"
 )
 mycursor = mydb.cursor()
 
@@ -144,12 +149,12 @@ dataset = {
         "ปลาเผา","กึน","ตับ","เครื่องในไก่","ใส้หมู","คอไก่","หมูหมัก","ไก่หมัก","เนื้อหมัก","เนื้อแดง",
         "หมักหมู","หมักไก่","หมักเนื้อ","เป็ดย่าง","ไก้ต้ม","หมูต้ม","เนื้อต้ม","ปลาดทอด","ปลานึง",
         "เนื้อแดดเดียว","หอยหวาน","หอยเชล","หอยหลอด","หมู","ไก่","เนื้อ","ไข่ต้ม","ไข่ทอด","ไข่","ใบมะกรูด",
-        "พริกชี้ฟ้าแดง","หมูหมัก","ตับหมู","ตับไก่","ปูเค็ม","ปูจืด","ปูดอง","ปูม้า","ปู","ปูดำ","กุ้งแห้ง","กุ้งทะเล",
-        "หอยแคง","กรรเชียงปู","ลูกชิ้นปลา","ลูกชิ้นไก่","ลูกชิ้นหมู","ลูกชิ้นเนื้อ","ลูกเกต","มะพร้าว","สตอว์เบอร์รี่",
+        "พริกชีฟ้าแดง","หมูหมัก","ตับหมู","ตับไก่","ปูเค็ม","ปูจืด","ปูดอง","ปูม้า","ปู","ปูดำ","กุ้งแห้ง","กุ้งทะเล",
+        "หอยแคง","กรรเชียงปู","ลูกชิ้นปลา","ลูกชิ้นไก่","ลูกชิ้นหมู","ลูกชิ้นเนื้อ","ลูกเกต","มะพร้าว","สตอว์เบอรี่",
         "ปลาทูน่า","กล้วย","ปลาสำลี","มะม่วง","ถั่ว","เม็ดมะม่วง","หมึกกรอบ","ปลากรอบ",
     ],
     "เครื่องปรุง": ["น้ำมันหอย", "น้ำปลา", "น้ำตาล", "น้ำมันพืช","เกลือ","","น้ำตาล",
-                "พริกไทย","น้ำปลา","กะปิ","ซอสถั่วเหลือง","ถั่วเน่า","เต้าเจี้ยว","เต้าเจี้ยวญี่ปุ่น",
+                "พริกไทย","น้ำปลา","กะปิ","ซอสถัวเหลือง","ถั่วเน่า","เต้าเจี้ยว","เต้าเจี้ยวญี่ปุ่น",
                 "น้ำตาล","น้ำส้มสายชู","พริกป่น","พริกดองน้ำส้ม","ซอสพริก","ซ้อสมะเขือเทศ",
                 "มัสตาร์ด","ซอสหอยนางรม","ซีอิ๊วดำ","น้ำปลาหอย","น้ำจิ้มบ๋วย","น้ำจิ้มสุกกี้","ซอสพริก",
                 "ซอสมะเขือเทศ","มะยองเนส","ซอสโชยุ","ซอสทงคัตซึ","ซอสงาขาว",
@@ -161,11 +166,13 @@ dataset = {
                 ],
 }
 
-
 # API เพื่อค้นหาอาหารจากชื่อ
 @app.get("/search_food/")
 async def search_food(food_name: str):
     try:
+        if not food_name.strip():  # Check if food_name is empty or whitespace
+            raise HTTPException(status_code=400, detail="Food name cannot be empty")
+            
         # สร้างคำสั่ง SQL เพื่อค้นหาข้อมูลอาหารจากชื่อในฐานข้อมูล
         sql = "SELECT * FROM foods WHERE Food_name ILIKE %s"
         mycursor.execute(sql, ('%' + food_name + '%',))
@@ -196,7 +203,57 @@ async def translate_english_to_thai(request: TranslationRequest):
     return {"translated_text": translated.text}
 
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+"---------------------------------------------------------register------------------------------------------"
+# API for user registration
+class UserRegistration(BaseModel):
+    username: str
+    password: str
+    phone: str
+    picture: str
+
+@app.post("/register/")
+async def register_user(user: UserRegistration):
+    try:
+        # Check if the username already exists
+        sql = "SELECT * FROM users WHERE username = %s"
+        mycursor.execute(sql, (user.username,))
+        existing_user = mycursor.fetchone()
+        if existing_user:
+            raise HTTPException(status_code=400, detail="Username already exists")
+
+        # Insert user data into the database
+        sql = "INSERT INTO users (username, password, phone, picture) VALUES (%s, %s, %s, %s)"
+        val = (user.username, user.password, user.phone, user.picture)
+        mycursor.execute(sql, val)
+        mydb.commit()
+
+        return {"message": "User registered successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
+"----------------------------------------------login-------------------------------------------------------"
+# API for user login
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
+# Define OAuth2 scheme for token generation
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+
+# Your existing login endpoint
+@app.post("/login/")
+async def user_login(user: UserLogin):
+    try:
+        # Your existing login logic
+        # ...
+
+        # Generate JWT token
+        expires_delta = timedelta(minutes=30)
+        expires = datetime.utcnow() + expires_delta
+        token_data = {"sub": user.username, "exp": expires}
+        encoded_jwt = jwt.encode(token_data, "secret_key", algorithm="HS256")
+
+        return {"access_token": encoded_jwt, "token_type": "bearer"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 

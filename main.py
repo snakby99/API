@@ -209,6 +209,8 @@ async def translate_english_to_thai(request: TranslationRequest):
 "---------------------------------------------------------register------------------------------------------"
 # API for user registration
 class UserRegistration(BaseModel):
+    firstname: str
+    lastname: str
     username: str
     password: str
     phone: str
@@ -218,15 +220,15 @@ class UserRegistration(BaseModel):
 async def register_user(user: UserRegistration):
     try:
         # Check if the username already exists
-        sql = "SELECT * FROM users WHERE username = %s"
+        sql = "SELECT * FROM userss WHERE username = %s"
         mycursor.execute(sql, (user.username,))
         existing_user = mycursor.fetchone()
         if existing_user:
             raise HTTPException(status_code=400, detail="Username already exists")
 
         # Insert user data into the database
-        sql = "INSERT INTO users (username, password, phone, picture) VALUES (%s, %s, %s, %s)"
-        val = (user.username, user.password, user.phone, user.picture)
+        sql = "INSERT INTO userss (firstname, lastname, username, password, phone, picture) VALUES (%s, %s, %s, %s, %s, %s)"
+        val = (user.firstname, user.lastname, user.username, user.password, user.phone, user.picture)
         mycursor.execute(sql, val)
         mydb.commit()
 

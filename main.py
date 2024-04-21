@@ -14,14 +14,6 @@ from passlib.context import CryptContext
 # Initialize FastAPI app
 app = FastAPI()
 translator = Translator()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],  
-    allow_headers=["*"],  
-    
-)
 
 # Connect to PostgreSQL database
 mydb = psycopg2.connect(

@@ -263,3 +263,11 @@ async def login(user_input: Login):
 
 "---------------------------------------edit user---------------------------------------"
 
+# API for user logout
+@app.post("/logout/")
+async def logout():
+    try:
+        # You can add any additional logout logic here if needed
+        return {"message": "Logged out successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

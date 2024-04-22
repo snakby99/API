@@ -10,6 +10,8 @@ from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
+from pydantic import BaseModel
+from passlib.hash import bcrypt
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -57,9 +59,6 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
-
-
-
 
 # เพิ่มฟังก์ชันใหม่เพื่อดึงข้อมูล food_name2 ทั้งหมดจากฐานข้อมูล
 def get_all_food_names():
@@ -207,6 +206,9 @@ async def translate_english_to_thai(request: TranslationRequest):
 
 
 "---------------------------------------------------------register------------------------------------------"
+from passlib.hash import bcrypt
+from fastapi import HTTPException
+
 # API for user registration
 class UserRegistration(BaseModel):
     firstname: str
@@ -219,46 +221,45 @@ class UserRegistration(BaseModel):
 @app.post("/register/")
 async def register_user(user: UserRegistration):
     try:
-        # Check if the username already exists
-        sql = "SELECT * FROM userss WHERE username = %s"
-        mycursor.execute(sql, (user.username,))
-        existing_user = mycursor.fetchone()
-        if existing_user:
-            raise HTTPException(status_code=400, detail="Username already exists")
+        # Hash the password with bcrypt
+        hashed_password = bcrypt.hash(user.password)
 
-        # Insert user data into the database
+        # Insert user data into the database with hashed password
         sql = "INSERT INTO userss (firstname, lastname, username, password, phone, picture) VALUES (%s, %s, %s, %s, %s, %s)"
-        val = (user.firstname, user.lastname, user.username, user.password, user.phone, user.picture)
+        val = (user.firstname, user.lastname, user.username, hashed_password, user.phone, user.picture)
         mycursor.execute(sql, val)
         mydb.commit()
 
         return {"message": "User registered successfully"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-    
-"----------------------------------------------login-------------------------------------------------------"
+"---------------------------------------login ---------------------------------------"
+
 # API for user login
-class UserLogin(BaseModel):
+class Login(BaseModel):
     username: str
     password: str
 
-# Define OAuth2 scheme for token generation
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
-
-# Your existing login endpoint
 @app.post("/login/")
-async def user_login(user: UserLogin):
+async def login(user_input: Login):
     try:
-        # Your existing login logic
-        # ...
+        # Execute SQL query to fetch user data by username
+        sql = "SELECT * FROM userss WHERE username = %s"
+        mycursor.execute(sql, (user_input.username,))
+        user = mycursor.fetchone()
 
-        # Generate JWT token
-        expires_delta = timedelta(minutes=30)
-        expires = datetime.utcnow() + expires_delta
-        token_data = {"sub": user.username, "exp": expires}
-        encoded_jwt = jwt.encode(token_data, "secret_key", algorithm="HS256")
-
-        return {"access_token": encoded_jwt, "token_type": "bearer"}
+        if user:
+            # Extract password hash from user data
+            stored_password_hash = user[4]
+            # Check if the stored password hash is a valid bcrypt hash
+            if bcrypt.verify(user_input.password, stored_password_hash):
+                return {"message": "Login successful"}
+            else:
+                raise HTTPException(status_code=401, detail="Invalid username or password")
+        else:
+            raise HTTPException(status_code=401, detail="Invalid username or password")
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+"---------------------------------------edit user---------------------------------------"
 

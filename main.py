@@ -98,19 +98,19 @@ dataset = {
 "---------------------------------------------search------------------------------------------"
 
 # API เพื่อค้นหาอาหารจากชื่อ
-@app.get("/search_food/")
-async def search_food(food_name: str):
+@app.get("/search_shop/")
+async def search_shop(shop_name: str):
     try:
-        if not food_name.strip():  # Check if food_name is empty or whitespace
-            raise HTTPException(status_code=400, detail="Food name cannot be empty")
+        if not shop_name.strip():  # Check if food_name is empty or whitespace
+            raise HTTPException(status_code=400, detail="Shop name cannot be empty")
             
         # สร้างคำสั่ง SQL เพื่อค้นหาข้อมูลอาหารจากชื่อในฐานข้อมูล
-        sql = "SELECT * FROM food WHERE Food_name ILIKE %s"
-        mycursor.execute(sql, ('%' + food_name + '%',))
+        sql = "SELECT * FROM shop WHERE shop_name ILIKE %s"
+        mycursor.execute(sql, ('%' + shop_name + '%',))
         result = mycursor.fetchall()
         # หากไม่พบข้อมูล
         if not result:
-            raise HTTPException(status_code=404, detail="Food not found")
+            raise HTTPException(status_code=404, detail="Shop not found")
         # แปลงผลลัพธ์เป็นรูปแบบ JSON และส่งกลับ
         return {"food_result": result}
     except Exception as e:
@@ -346,6 +346,43 @@ async def add_shop(shop: ShopData, user_id: int):
         raise HTTPException(status_code=400, detail=str(e))
 "-------------------------------------Show data shop------------------------------------"
 
+# Define Pydantic model for shop data
+class ShopInfo(BaseModel):
+    shop_name: str
+    shop_location: str
+    shop_phone: str
+    shop_map: str
+    shop_time: str
+    shop_picture: str
+    shop_text: str
+    user_id: int
+
+# API to retrieve shop data
+@app.get("/shop/{shop_id}")
+async def get_shop(shop_id: int):
+    try:
+        # Execute SQL query to fetch shop data by shop_id
+        sql = "SELECT * FROM shop WHERE shop_id = %s"
+        mycursor.execute(sql, (shop_id,))
+        shop_data = mycursor.fetchone()
+
+        if shop_data:
+            # Extract shop data and return
+            shop = ShopInfo(
+                shop_name=shop_data[1],
+                shop_location=shop_data[2],
+                shop_phone=shop_data[3],
+                shop_map=shop_data[4],
+                shop_time=shop_data[5],
+                shop_picture=shop_data[6],
+                shop_text=shop_data[7],
+                user_id=shop_data[8]
+            )
+            return shop.dict()
+        else:
+            raise HTTPException(status_code=404, detail="ร้านค้าไม่พบ")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
     
 "-------------------------------edit shop-------------------------------"
@@ -466,3 +503,57 @@ def find_matching_words(input_text):
         matched_words[key] = [word for word in words if re.search(word, input_text)]
 
     return matched_words
+
+"-------------------------------------Show data food------------------------------------"
+from typing import List
+
+class FoodInfo(BaseModel):
+    Food_name: str
+    Food_name2: str
+    Food_element: str
+    Food_price: float
+    Food_picture: str
+    Food_text2: str
+
+class FoodExtraction(BaseModel):
+    food_name: str
+    food_element: str
+
+@app.get("/food/{food_id}")
+async def get_food_details(food_id: int):
+    try:
+        # Fetch food details from food table
+        sql_food = "SELECT * FROM food WHERE food_id = %s"
+        mycursor.execute(sql_food, (food_id,))
+        food_data = mycursor.fetchone()
+
+        if food_data:
+            # Extract food data
+            food_info = FoodInfo(
+                Food_name=food_data[1],
+                Food_name2=food_data[2],
+                Food_element=food_data[3],
+                Food_price=food_data[4],
+                Food_picture=food_data[5],
+                Food_text2=food_data[6]
+            )
+
+            # Fetch matching words from foods_extraction table
+            sql_extraction = "SELECT food_name, food_element FROM foods_extraction WHERE food_id = %s"
+            mycursor.execute(sql_extraction, (food_id,))
+            extraction_data = mycursor.fetchall()
+
+            extraction_info = []
+            for extraction in extraction_data:
+                extraction_info.append(FoodExtraction(food_name=extraction[0], food_element=extraction[1]))
+
+            return {
+                "food_info": food_info.dict(),
+                "extraction_info": [extraction.dict() for extraction in extraction_info]
+            }
+        else:
+            raise HTTPException(status_code=404, detail="Food not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+

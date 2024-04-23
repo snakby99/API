@@ -197,14 +197,21 @@ class TranslationResponse(BaseModel):
 
 @app.post("/translate/th-en/")
 async def translate_thai_to_english(request: TranslationRequest):
-    translated = translator.translate(request.text, src='th', dest='en')
-    return {"translated_text": translated.text}
+    try:
+        translated = translator.translate(request.text, src='th', dest='en')
+        return {"translated_text": translated.text}
+    except Exception as e:
+        print(f"Error translating Thai to English: {e}")
+        raise HTTPException(status_code=500, detail="Translation failed")
 
 @app.post("/translate/en-th/")
 async def translate_english_to_thai(request: TranslationRequest):
-    translated = translator.translate(request.text, src='en', dest='th')
-    return {"translated_text": translated.text}
-
+    try:
+        translated = translator.translate(request.text, src='en', dest='th')
+        return {"translated_text": translated.text}
+    except Exception as e:
+        print(f"Error translating English to Thai: {e}")
+        raise HTTPException(status_code=500, detail="Translation failed")
 
 "---------------------------------------------------------register------------------------------------------"
 

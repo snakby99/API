@@ -47,11 +47,6 @@ class Food(BaseModel):
         for invalid_char, valid_char in invalid_chars.items():
             self.Food_element = self.Food_element.replace(invalid_char, valid_char)
 
-# Define a Pydantic BaseModel for the search query
-class FoodSearchQuery(BaseModel):
-    query: str
-    limit: Optional[int] = 10
-
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -61,76 +56,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# เพิ่มฟังก์ชันใหม่เพื่อดึงข้อมูล food_name2 ทั้งหมดจากฐานข้อมูล
-def get_all_food_names():
-    try:
-        # สร้างคำสั่ง SQL เพื่อดึงข้อมูล food_name2 ทั้งหมดจากฐานข้อมูล
-        sql = "SELECT DISTINCT Food_name2 FROM foods"
-        mycursor.execute(sql)
-        # ดึงข้อมูลทั้งหมดจากการ query
-        result = mycursor.fetchall()
-        # แปลงข้อมูลให้เป็น list ของ food_name2
-        food_names = [item[0] for item in result]
-        return food_names
-    except Exception as e:
-        # หากเกิดข้อผิดพลาดในการดึงข้อมูลจากฐานข้อมูล
-        print("Error fetching food names:", e)
-        return []
-
-# เพิ่ม API endpoint เพื่อให้เว็บแอปพลิเคชันดึงข้อมูล food_name2 และแสดงใน dropdown หรือ autocomplete
-# API เพื่อรับชื่ออาหาร
-@app.get("/food_names2/")
-async def get_food_names2(food_type: str):
-    try:
-        # สร้างคำสั่ง SQL เพื่อดึงชื่ออาหารและองค์ประกอบอาหารที่ตรงกับประเภทอาหารที่เลือก
-        sql = "SELECT Food_name, Food_element FROM foods WHERE Food_element = %s"
-        mycursor.execute(sql, (food_type,))
-        result = mycursor.fetchall()
-        food_info = [{"food_name": item[0], "food_element": item[1]} for item in result]
-        return {"food_info": food_info}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-# API เพื่อเพิ่มข้อมูลอาหารใหม่เข้าฐานข้อมูล
-@app.post("/add_food/")
-async def add_food(food: Food):
-    # Replace invalid characters in Food_element
-    food.replace_invalid_chars()
-
-    try:
-        # Insert food data into the database
-        sql = "INSERT INTO foods (Food_name, Food_name2, Food_element, Food_price, Food_picture) VALUES (%s, %s, %s, %s, %s)"
-        val = (food.Food_name, food.Food_name2, food.Food_element, food.Food_price, food.Food_picture)
-        mycursor.execute(sql, val)
-        mydb.commit()
-
-        # Fetch the last inserted food id
-        mycursor.execute("SELECT lastval()")
-        last_food_id = mycursor.fetchone()[0]
-
-        # Find matching words from dataset and Food_element
-        matched_words = find_matching_words(food.Food_element)
-
-        # Insert the matched words into foods_extraction table
-        for key, words in matched_words.items():
-            for word in words:
-                sql = "INSERT INTO foods_extraction (food_id, food_name, food_element) VALUES (%s, %s, %s)"
-                val = (last_food_id, food.Food_name, word)
-                mycursor.execute(sql, val)
-                mydb.commit()
-
-        return {"message": "Food added successfully"}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-# Function to find matching words from dataset
-def find_matching_words(input_text):
-    matched_words = {}
-
-    for key, words in dataset.items():
-        matched_words[key] = [word for word in words if re.search(word, input_text)]
-
-    return matched_words
+"---------------------------------------------data set------------------------------------------"
 
 # Sample dataset
 dataset = {
@@ -169,6 +95,8 @@ dataset = {
                 ],
 }
 
+"---------------------------------------------search------------------------------------------"
+
 # API เพื่อค้นหาอาหารจากชื่อ
 @app.get("/search_food/")
 async def search_food(food_name: str):
@@ -177,7 +105,7 @@ async def search_food(food_name: str):
             raise HTTPException(status_code=400, detail="Food name cannot be empty")
             
         # สร้างคำสั่ง SQL เพื่อค้นหาข้อมูลอาหารจากชื่อในฐานข้อมูล
-        sql = "SELECT * FROM foods WHERE Food_name ILIKE %s"
+        sql = "SELECT * FROM food WHERE Food_name ILIKE %s"
         mycursor.execute(sql, ('%' + food_name + '%',))
         result = mycursor.fetchall()
         # หากไม่พบข้อมูล
@@ -187,6 +115,9 @@ async def search_food(food_name: str):
         return {"food_result": result}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+    
+
+"----------------------------------------------translate------------------------------------------"
 
 
 class TranslationRequest(BaseModel):
@@ -197,21 +128,14 @@ class TranslationResponse(BaseModel):
 
 @app.post("/translate/th-en/")
 async def translate_thai_to_english(request: TranslationRequest):
-    try:
-        translated = translator.translate(request.text, src='th', dest='en')
-        return {"translated_text": translated.text}
-    except Exception as e:
-        print(f"Error translating Thai to English: {e}")
-        raise HTTPException(status_code=500, detail="Translation failed")
+    translated = translator.translate(request.text, src='th', dest='en')
+    return {"translated_text": translated.text}
 
 @app.post("/translate/en-th/")
 async def translate_english_to_thai(request: TranslationRequest):
-    try:
-        translated = translator.translate(request.text, src='en', dest='th')
-        return {"translated_text": translated.text}
-    except Exception as e:
-        print(f"Error translating English to Thai: {e}")
-        raise HTTPException(status_code=500, detail="Translation failed")
+    translated = translator.translate(request.text, src='en', dest='th')
+    return {"translated_text": translated.text}
+
 
 "---------------------------------------------------------register------------------------------------------"
 
@@ -266,7 +190,37 @@ async def login(user_input: Login):
             raise HTTPException(status_code=401, detail="Invalid username or password")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+"-------------------------------------Show data user------------------------------------"
+class UserData(BaseModel):
+    firstname: str
+    lastname: str
+    username: str
+    phone: str
+    picture: str
 
+# API to retrieve user data
+@app.get("/user/{username}")
+async def get_user(username: str):
+    try:
+        # Execute SQL query to fetch user data by username
+        sql = "SELECT firstname, lastname, username, phone, picture FROM userss WHERE username = %s"
+        mycursor.execute(sql, (username,))
+        user_data = mycursor.fetchone()
+
+        if user_data:
+            # Extract user data and return
+            user = UserData(
+                firstname=user_data[0],
+                lastname=user_data[1],
+                username=user_data[2],
+                phone=user_data[3],
+                picture=user_data[4]
+            )
+            return user.dict()
+        else:
+            raise HTTPException(status_code=404, detail="User not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 "---------------------------------------edit user---------------------------------------"
 # API for editing user data
 class EditUser(BaseModel):
@@ -390,6 +344,9 @@ async def add_shop(shop: ShopData, user_id: int):
         return {"message": "เพิ่มข้อมูลร้านค้าเรียบร้อยแล้ว"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+"-------------------------------------Show data shop------------------------------------"
+
+
     
 "-------------------------------edit shop-------------------------------"
 # API เพื่อแก้ไขข้อมูลร้านค้า
@@ -448,3 +405,64 @@ async def delete_shop(shop_id: int, user_id: int):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+"--------------------------------create food-------------------------------"
+
+
+class Food(BaseModel):
+    Food_name: str
+    Food_name2: str
+    Food_element: str
+    Food_price: float
+    Food_picture: str
+    Food_text2: str
+
+    def replace_invalid_chars(self):
+        # Implement logic to replace invalid characters in Food_element
+        pass
+
+@app.post("/add_food/{shop_id}/")
+async def add_food_to_shop(shop_id: int, food: Food):
+    food.replace_invalid_chars()
+
+    try:
+        # Check if the shop exists
+        sql_check_shop = "SELECT * FROM shop WHERE shop_id = %s"
+        mycursor.execute(sql_check_shop, (shop_id,))
+        shop = mycursor.fetchone()
+
+        if shop:
+            # Insert food data into the database
+            sql_insert_food = "INSERT INTO food (Food_name, Food_name2, Food_element, Food_price, Food_picture, Food_text2, shop_id) VALUES (%s, %s, %s, %s, %s, %s, %s)"
+            val = (food.Food_name, food.Food_name2, food.Food_element, food.Food_price, food.Food_picture, food.Food_text2, shop_id)
+            mycursor.execute(sql_insert_food, val)
+            mydb.commit()
+
+            # Fetch the last inserted food id
+            mycursor.execute("SELECT lastval()")
+            last_food_id = mycursor.fetchone()[0]
+
+            # Insert the matched words into foods_extraction table
+            matched_words = find_matching_words(food.Food_element)
+            for key, words in matched_words.items():
+                for word in words:
+                    sql_insert_extraction = "INSERT INTO foods_extraction (food_id, food_name, food_element) VALUES (%s, %s, %s)"
+                    val_extraction = (last_food_id, food.Food_name, word)
+                    mycursor.execute(sql_insert_extraction, val_extraction)
+                    mydb.commit()
+
+            return {"message": "Food added to shop successfully"}
+        else:
+            raise HTTPException(status_code=404, detail="Shop not found")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+
+# Function to find matching words from dataset
+def find_matching_words(input_text):
+    matched_words = {}
+
+    for key, words in dataset.items():
+        matched_words[key] = [word for word in words if re.search(word, input_text)]
+
+    return matched_words

@@ -12,6 +12,7 @@ from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 from pydantic import BaseModel
 from passlib.hash import bcrypt
+from typing import List
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -54,7 +55,7 @@ class FoodSearchQuery(BaseModel):
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost", "http://localhost:8080", "http://127.0.0.1", "http://127.0.0.1:8080"],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
@@ -206,8 +207,6 @@ async def translate_english_to_thai(request: TranslationRequest):
 
 
 "---------------------------------------------------------register------------------------------------------"
-from passlib.hash import bcrypt
-from fastapi import HTTPException
 
 # API for user registration
 class UserRegistration(BaseModel):
@@ -262,7 +261,83 @@ async def login(user_input: Login):
         raise HTTPException(status_code=500, detail=str(e))
 
 "---------------------------------------edit user---------------------------------------"
+# API for editing user data
+class EditUser(BaseModel):
+    firstname: Optional[str] = None
+    lastname: Optional[str] = None
+    password: Optional[str] = None
+    phone: Optional[str] = None
+    picture: Optional[str] = None
 
+@app.put("/user/{user_id}/edit/")
+async def edit_user(user_id: int, user_data: EditUser):
+    try:
+        # Fetch user data from the database
+        sql_select = "SELECT * FROM userss WHERE user_id = %s"
+        mycursor.execute(sql_select, (user_id,))
+        user = mycursor.fetchone()
+
+        if user:
+            # Update user data
+            updated_values = {}
+            if user_data.firstname:
+                updated_values['firstname'] = user_data.firstname
+            if user_data.lastname:
+                updated_values['lastname'] = user_data.lastname
+            if user_data.password:
+                hashed_password = bcrypt.hash(user_data.password)
+                updated_values['password'] = hashed_password
+            if user_data.phone:
+                updated_values['phone'] = user_data.phone
+            if user_data.picture:
+                updated_values['picture'] = user_data.picture
+            
+            if updated_values:
+                # Construct SQL query for updating user data
+                sql_update = "UPDATE userss SET "
+                sql_values = []
+                for key, value in updated_values.items():
+                    sql_values.append(f"{key} = %s")
+                sql_update += ", ".join(sql_values)
+                sql_update += " WHERE user_id = %s"
+
+                # Execute SQL query to update user data
+                val = list(updated_values.values())
+                val.append(user_id)
+                mycursor.execute(sql_update, val)
+                mydb.commit()
+
+                return {"message": "User data updated successfully"}
+            else:
+                return {"message": "No data provided for update"}
+        else:
+            raise HTTPException(status_code=404, detail="User not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+"---------------------------------------delete user---------------------------------------"
+# API for deleting user data
+@app.delete("/user/{user_id}/delete/")
+async def delete_user(user_id: int):
+    try:
+        # Check if user exists
+        sql_select = "SELECT * FROM userss WHERE user_id = %s"
+        mycursor.execute(sql_select, (user_id,))
+        user = mycursor.fetchone()
+
+        if user:
+            # Execute SQL query to delete user
+            sql_delete = "DELETE FROM userss WHERE user_id = %s"
+            mycursor.execute(sql_delete, (user_id,))
+            mydb.commit()
+
+            return {"message": "User deleted successfully"}
+        else:
+            raise HTTPException(status_code=404, detail="User not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+"---------------------------------------logout---------------------------------------"
 # API for user logout
 @app.post("/logout/")
 async def logout():
@@ -271,3 +346,98 @@ async def logout():
         return {"message": "Logged out successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+"--------------------------------create shop-------------------------------"
+# API เพื่อเพิ่มข้อมูลร้านค้า
+class ShopData(BaseModel):
+    shop_name: str
+    shop_location: str
+    shop_phone: str
+    shop_map: str
+    shop_time: str
+    shop_picture: str
+    shop_type: str
+
+@app.post("/add_shop/")
+async def add_shop(shop: ShopData, user_id: int):
+    try:
+        # เรียกข้อมูลประเภทร้านค้าจากตาราง shop2
+        sql_select = "SELECT shop_type FROM shop2"
+        mycursor.execute(sql_select)
+        shop_types = mycursor.fetchall()
+
+        # ดึงข้อมูลประเภทร้านค้าจากข้อมูลที่ดึงมา
+        valid_shop_types = [shop_type[0] for shop_type in shop_types]
+
+        # ตรวจสอบว่า shop_type ที่ให้มาถูกต้องหรือไม่
+        if shop.shop_type not in valid_shop_types:
+            raise HTTPException(status_code=400, detail="ประเภทร้านค้าไม่ถูกต้อง")
+
+        # เพิ่มข้อมูลร้านค้าลงในฐานข้อมูล
+        sql_insert = "INSERT INTO shop (shop_name, shop_location, shop_phone, shop_map, shop_time, shop_picture, shop_text, user_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
+        shop_text = shop.shop_type  # กำหนดค่าเริ่มต้นของ shop_text เป็น shop_type ที่เลือกไว้
+        val = (shop.shop_name, shop.shop_location, shop.shop_phone, shop.shop_map, shop.shop_time, shop.shop_picture, shop_text, user_id)
+        mycursor.execute(sql_insert, val)
+        mydb.commit()
+
+        return {"message": "เพิ่มข้อมูลร้านค้าเรียบร้อยแล้ว"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
+"-------------------------------edit shop-------------------------------"
+# API เพื่อแก้ไขข้อมูลร้านค้า
+@app.put("/edit_shop/{shop_id}/")
+async def edit_shop(shop_id: int, shop: ShopData, user_id: int):
+    try:
+        # ตรวจสอบว่าร้านค้าที่ต้องการแก้ไขมีอยู่ในฐานข้อมูลหรือไม่
+        sql_select = "SELECT * FROM shop WHERE shop_id = %s AND user_id = %s"
+        mycursor.execute(sql_select, (shop_id, user_id))
+        existing_shop = mycursor.fetchone()
+
+        if existing_shop:
+            # เรียกข้อมูลประเภทร้านค้าจากตาราง shop2
+            sql_select_types = "SELECT shop_type FROM shop2"
+            mycursor.execute(sql_select_types)
+            shop_types = mycursor.fetchall()
+
+            # ดึงข้อมูลประเภทร้านค้าจากข้อมูลที่ดึงมา
+            valid_shop_types = [shop_type[0] for shop_type in shop_types]
+
+            # ตรวจสอบว่า shop_type ที่ให้มาถูกต้องหรือไม่
+            if shop.shop_type not in valid_shop_types:
+                raise HTTPException(status_code=400, detail="ประเภทร้านค้าไม่ถูกต้อง")
+
+            # อัปเดตข้อมูลร้านค้า
+            sql_update = "UPDATE shop SET shop_name = %s, shop_location = %s, shop_phone = %s, shop_map = %s, shop_time = %s, shop_picture = %s, shop_text = %s WHERE shop_id = %s AND user_id = %s"
+            val = (shop.shop_name, shop.shop_location, shop.shop_phone, shop.shop_map, shop.shop_time, shop.shop_picture, shop.shop_type, shop_id, user_id)
+            mycursor.execute(sql_update, val)
+            mydb.commit()
+
+            return {"message": "แก้ไขข้อมูลร้านค้าเรียบร้อยแล้ว"}
+        else:
+            raise HTTPException(status_code=404, detail="ไม่พบข้อมูลร้านค้าที่ต้องการแก้ไขหรือไม่มีสิทธิ์ในการแก้ไขข้อมูลร้านค้านี้")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+"-------------------------------delete shop-------------------------------"
+# API เพื่อลบข้อมูลร้านค้า
+@app.delete("/delete_shop/{shop_id}/")
+async def delete_shop(shop_id: int, user_id: int):
+    try:
+        # ตรวจสอบว่าร้านค้าที่ต้องการลบมีอยู่ในฐานข้อมูลหรือไม่
+        sql_select = "SELECT * FROM shop WHERE shop_id = %s AND user_id = %s"
+        mycursor.execute(sql_select, (shop_id, user_id))
+        existing_shop = mycursor.fetchone()
+
+        if existing_shop:
+            # ลบข้อมูลร้านค้า
+            sql_delete = "DELETE FROM shop WHERE shop_id = %s AND user_id = %s"
+            mycursor.execute(sql_delete, (shop_id, user_id))
+            mydb.commit()
+
+            return {"message": "ลบข้อมูลร้านค้าเรียบร้อยแล้ว"}
+        else:
+            raise HTTPException(status_code=404, detail="ไม่พบข้อมูลร้านค้าที่ต้องการลบหรือไม่มีสิทธิ์ในการลบข้อมูลร้านค้านี้")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+

@@ -504,18 +504,15 @@ async def get_food_element(food_name: str):
         raise HTTPException(status_code=404, detail=str(e))
 
 "-------------------------------------Show data food------------------------------------"
-# Define Pydantic model for food data
+
+
+# Modify the FoodInfo model to remove Food_name2
 class FoodInfo(BaseModel):
     Food_name: str
-    Food_name2: str
     Food_element: str
     Food_price: float
     Food_picture: str
     Food_text2: str
-
-class FoodExtraction(BaseModel):
-    food_name: str
-    food_element: str
 
 @app.get("/foods/", response_model=List[FoodInfo])
 async def get_all_foods():
@@ -530,12 +527,11 @@ async def get_all_foods():
             foods_info = []
             for food_record in food_data:
                 food_info = FoodInfo(
-                    Food_name=food_record[1],
-                    Food_name2=food_record[2],
-                    Food_element=food_record[3],
-                    Food_price=food_record[4],
-                    Food_picture=food_record[5],
-                    Food_text2=food_record[6]
+                    Food_name=food_record[0],  # Adjust index to match the position of Food_name in the query result
+                    Food_element=food_record[1],  # Adjust index to match the position of Food_element in the query result
+                    Food_price=food_record[2],  # Adjust index to match the position of Food_price in the query result
+                    Food_picture=food_record[3],  # Adjust index to match the position of Food_picture in the query result
+                    Food_text2=food_record[4]  # Adjust index to match the position of Food_text2 in the query result
                 )
                 foods_info.append(food_info)
             return foods_info
@@ -543,7 +539,7 @@ async def get_all_foods():
             raise HTTPException(status_code=404, detail="No food items found")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
+
 "-------------------------------------edit data food------------------------------------"
 # API endpoint to update food data
 @app.put("/update_food/{food_id}/")

@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from passlib.hash import bcrypt
 from typing import List
 
+
 # Initialize FastAPI app
 app = FastAPI()
 translator = Translator()
@@ -358,7 +359,7 @@ class ShopInfo(BaseModel):
     shop_time: str
     shop_picture: str
     shop_text: str
-    user_id: int
+    user_id: Optional[int]
 
 # API to retrieve all shop data
 @app.get("/shops/", response_model=List[ShopInfo])
@@ -450,6 +451,11 @@ async def delete_shop(shop_id: int, user_id: int):
         raise HTTPException(status_code=400, detail=str(e))
 
 "--------------------------------create food-------------------------------"
+# Mockup functions
+async def get_current_shop_id():
+    # Mockup implementation
+    return 1
+
 # Model for the Food data
 class Food(BaseModel):
     Food_name: str
@@ -473,8 +479,8 @@ def get_existing_food_names():
     return food_names
 
 # API endpoint to add food to shop
-@app.post("/add_food/{shop_id}/")
-async def add_food_to_shop(shop_id: int, food: Food):
+@app.post("/add_food/")
+async def add_food_to_shop(food: Food, shop_id: int = Depends(get_current_shop_id)):
     food.replace_invalid_chars()
 
     try:
@@ -483,18 +489,27 @@ async def add_food_to_shop(shop_id: int, food: Food):
         mycursor.execute(sql_check_shop, (shop_id,))
         shop = mycursor.fetchone()
 
-        if shop:
-            # Insert food data into the database
-            sql_insert_food = "INSERT INTO food (Food_name, Food_element, Food_price, Food_picture, Food_text2, shop_id) VALUES (%s, %s, %s, %s, %s, %s)"
-            val = (food.Food_name, food.Food_element, food.Food_price, food.Food_picture, food.Food_text2, shop_id)
-            mycursor.execute(sql_insert_food, val)
-            mydb.commit()
-
-            return {"message": "Food added to shop successfully"}
-        else:
+        if not shop:
             raise HTTPException(status_code=404, detail="Shop not found")
+
+        # Insert food data into the database
+        sql_insert_food = "INSERT INTO food (Food_name, Food_element, Food_price, Food_picture, Food_text2, shop_id) VALUES (%s, %s, %s, %s, %s, %s)"
+        val = (food.Food_name, food.Food_element, food.Food_price, food.Food_picture, food.Food_text2, shop_id)
+        mycursor.execute(sql_insert_food, val)
+        mydb.commit()
+
+        return {"message": "Food added to shop successfully"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+        
+# Function to find matching words from dataset
+def find_matching_words(input_text):
+    matched_words = {}
+
+    for key, words in dataset.items():
+        matched_words[key] = [word for word in words if re.search(word, input_text)]
+
+    return matched_words
 
 # API endpoint to get Food_element based on selected Food_name
 @app.get("/get_food_element/{food_name}")
@@ -508,6 +523,7 @@ async def get_food_element(food_name: str):
         return {"Food_element": food_element}  # Return Food_element as JSON
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
+
 
 "-------------------------------------Show data food------------------------------------"
 

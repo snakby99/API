@@ -117,25 +117,22 @@ async def search_shop(shop_name: str):
         raise HTTPException(status_code=400, detail=str(e))
     
 "----------------------------------------------translate------------------------------------------"
-
 class TranslationRequest(BaseModel):
     text: str
 
 class TranslationResponse(BaseModel):
     translated_text: str
 
-@app.post("/translate/")
-async def translate_text(request: TranslationRequest):
-    # Try to detect the source language and translate accordingly
-    try:
-        detected_lang = translator.detect(request.text).lang
-        if detected_lang == 'th':
-            translated = translator.translate(request.text, src='th', dest='en')
-        else:
-            translated = translator.translate(request.text, src='en', dest='th')
-        return {"translated_text": translated.text}
-    except Exception as e:
-        return {"error": str(e)}
+@app.post("/translate/th-en/")
+async def translate_thai_to_english(request: TranslationRequest):
+    translated = translator.translate(request.text, src='th', dest='en')
+    return {"translated_text": translated.text}
+
+@app.post("/translate/en-th/")
+async def translate_english_to_thai(request: TranslationRequest):
+    translated = translator.translate(request.text, src='en', dest='th')
+    return {"translated_text": translated.text}
+
 
 "---------------------------------------------------------register------------------------------------------"
 
@@ -319,8 +316,14 @@ class ShopData(BaseModel):
     shop_picture: str
     shop_type: str
 
+# Assuming you have a function to get the current user's ID
+def get_current_user_id():  
+    # Example implementation:
+    # return current_user.id  
+    pass
+
 @app.post("/add_shop/")
-async def add_shop(shop: ShopData, user_id: int):
+async def add_shop(shop: ShopData, user_id: int = Depends(get_current_user_id)):
     try:
         # เรียกข้อมูลประเภทร้านค้าจากตาราง shop2
         sql_select = "SELECT shop_type FROM shop2"
@@ -335,9 +338,9 @@ async def add_shop(shop: ShopData, user_id: int):
             raise HTTPException(status_code=400, detail="ประเภทร้านค้าไม่ถูกต้อง")
 
         # เพิ่มข้อมูลร้านค้าลงในฐานข้อมูล
-        sql_insert = "INSERT INTO shop (shop_name, shop_location, shop_phone, shop_map, shop_time, shop_picture, shop_text, user_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
+        sql_insert = "INSERT INTO shop (shop_name, shop_location, shop_phone, shop_map, shop_time, shop_picture, shop_text) VALUES (%s, %s, %s, %s, %s, %s, %s)"
         shop_text = shop.shop_type  # กำหนดค่าเริ่มต้นของ shop_text เป็น shop_type ที่เลือกไว้
-        val = (shop.shop_name, shop.shop_location, shop.shop_phone, shop.shop_map, shop.shop_time, shop.shop_picture, shop_text, user_id)
+        val = (shop.shop_name, shop.shop_location, shop.shop_phone, shop.shop_map, shop.shop_time, shop.shop_picture, shop_text)
         mycursor.execute(sql_insert, val)
         mydb.commit()
 
@@ -447,11 +450,9 @@ async def delete_shop(shop_id: int, user_id: int):
         raise HTTPException(status_code=400, detail=str(e))
 
 "--------------------------------create food-------------------------------"
-
-
+# Model for the Food data
 class Food(BaseModel):
     Food_name: str
-    Food_name2: str
     Food_element: str
     Food_price: float
     Food_picture: str
@@ -461,6 +462,17 @@ class Food(BaseModel):
         # Implement logic to replace invalid characters in Food_element
         pass
 
+# Function to retrieve existing food names from database
+def get_existing_food_names():
+    food_names = []
+    sql_get_food_names = "SELECT DISTINCT Food_name2 FROM food"
+    mycursor.execute(sql_get_food_names)
+    results = mycursor.fetchall()
+    for result in results:
+        food_names.append(result[0])
+    return food_names
+
+# API endpoint to add food to shop
 @app.post("/add_food/{shop_id}/")
 async def add_food_to_shop(shop_id: int, food: Food):
     food.replace_invalid_chars()
@@ -473,23 +485,10 @@ async def add_food_to_shop(shop_id: int, food: Food):
 
         if shop:
             # Insert food data into the database
-            sql_insert_food = "INSERT INTO food (Food_name, Food_name2, Food_element, Food_price, Food_picture, Food_text2, shop_id) VALUES (%s, %s, %s, %s, %s, %s, %s)"
-            val = (food.Food_name, food.Food_name2, food.Food_element, food.Food_price, food.Food_picture, food.Food_text2, shop_id)
+            sql_insert_food = "INSERT INTO food (Food_name, Food_element, Food_price, Food_picture, Food_text2, shop_id) VALUES (%s, %s, %s, %s, %s, %s)"
+            val = (food.Food_name, food.Food_element, food.Food_price, food.Food_picture, food.Food_text2, shop_id)
             mycursor.execute(sql_insert_food, val)
             mydb.commit()
-
-            # Fetch the last inserted food id
-            mycursor.execute("SELECT lastval()")
-            last_food_id = mycursor.fetchone()[0]
-
-            # Insert the matched words into foods_extraction table
-            matched_words = find_matching_words(food.Food_element)
-            for key, words in matched_words.items():
-                for word in words:
-                    sql_insert_extraction = "INSERT INTO foods_extraction (food_id, food_name, food_element) VALUES (%s, %s, %s)"
-                    val_extraction = (last_food_id, food.Food_name, word)
-                    mycursor.execute(sql_insert_extraction, val_extraction)
-                    mydb.commit()
 
             return {"message": "Food added to shop successfully"}
         else:
@@ -497,30 +496,29 @@ async def add_food_to_shop(shop_id: int, food: Food):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+# API endpoint to get Food_element based on selected Food_name
+@app.get("/get_food_element/{food_name}")
+async def get_food_element(food_name: str):
+    try:
+        # Retrieve Food_element from the database based on Food_name
+        sql_get_food_element = "SELECT Food_element FROM food WHERE Food_name = %s"
+        mycursor.execute(sql_get_food_element, (food_name,))
+        food_element = mycursor.fetchone()[0]
 
-
-# Function to find matching words from dataset
-def find_matching_words(input_text):
-    matched_words = {}
-
-    for key, words in dataset.items():
-        matched_words[key] = [word for word in words if re.search(word, input_text)]
-
-    return matched_words
+        return {"Food_element": food_element}  # Return Food_element as JSON
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 "-------------------------------------Show data food------------------------------------"
-# Define Pydantic model for food data
+
+
+# Modify the FoodInfo model to remove Food_name2
 class FoodInfo(BaseModel):
     Food_name: str
-    Food_name2: str
     Food_element: str
     Food_price: float
     Food_picture: str
     Food_text2: str
-
-class FoodExtraction(BaseModel):
-    food_name: str
-    food_element: str
 
 @app.get("/foods/", response_model=List[FoodInfo])
 async def get_all_foods():
@@ -535,12 +533,11 @@ async def get_all_foods():
             foods_info = []
             for food_record in food_data:
                 food_info = FoodInfo(
-                    Food_name=food_record[1],
-                    Food_name2=food_record[2],
-                    Food_element=food_record[3],
-                    Food_price=food_record[4],
-                    Food_picture=food_record[5],
-                    Food_text2=food_record[6]
+                    Food_name=food_record[0],  # Adjust index to match the position of Food_name in the query result
+                    Food_element=food_record[1],  # Adjust index to match the position of Food_element in the query result
+                    Food_price=food_record[2],  # Adjust index to match the position of Food_price in the query result
+                    Food_picture=food_record[3],  # Adjust index to match the position of Food_picture in the query result
+                    Food_text2=food_record[4]  # Adjust index to match the position of Food_text2 in the query result
                 )
                 foods_info.append(food_info)
             return foods_info
@@ -549,5 +546,52 @@ async def get_all_foods():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+"-------------------------------------edit data food------------------------------------"
+# API endpoint to update food data
+@app.put("/update_food/{food_id}/")
+async def update_food_data(food_id: int, updated_food: Food):
+    updated_food.replace_invalid_chars()
+
+    try:
+        # Check if the food exists
+        sql_check_food = "SELECT * FROM food WHERE food_id = %s"
+        mycursor.execute(sql_check_food, (food_id,))
+        existing_food = mycursor.fetchone()
+
+        if existing_food:
+            # Update food data in the database
+            sql_update_food = "UPDATE food SET Food_name = %s, Food_element = %s, Food_price = %s, Food_picture = %s, Food_text2 = %s WHERE food_id = %s"
+            val = (updated_food.Food_name, updated_food.Food_element, updated_food.Food_price, updated_food.Food_picture, updated_food.Food_text2, food_id)
+            mycursor.execute(sql_update_food, val)
+            mydb.commit()
+
+            return {"message": "Food data updated successfully"}
+        else:
+            raise HTTPException(status_code=404, detail="Food not found")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
+"-------------------------------------delte data food------------------------------------"
+
+# API endpoint to delete food from shop
+@app.delete("/delete_food/{food_id}/")
+async def delete_food_from_shop(food_id: int):
+    try:
+        # Check if the food exists
+        sql_check_food = "SELECT * FROM food WHERE food_id = %s"
+        mycursor.execute(sql_check_food, (food_id,))
+        existing_food = mycursor.fetchone()
+
+        if existing_food:
+            # Delete food from the database
+            sql_delete_food = "DELETE FROM food WHERE food_id = %s"
+            mycursor.execute(sql_delete_food, (food_id,))
+            mydb.commit()
+
+            return {"message": "Food deleted successfully"}
+        else:
+            raise HTTPException(status_code=404, detail="Food not found")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 

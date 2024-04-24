@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel, Field
 import psycopg2
 import re
+import bcrypt
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 from googletrans import Translator
@@ -159,6 +160,12 @@ async def register_user(user: UserRegistration):
         mydb.commit()
 
         return {"message": "User registered successfully"}
+    except ImportError:
+        raise HTTPException(status_code=500, detail="bcrypt module not found")
+    except bcrypt.exceptions.InvalidSaltError:
+        raise HTTPException(status_code=500, detail="Invalid salt")
+    except bcrypt.exceptions.InvalidHashError:
+        raise HTTPException(status_code=500, detail="Invalid hash")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 "---------------------------------------login ---------------------------------------"
@@ -216,9 +223,10 @@ async def get_user(username: str):
             )
             return user.dict()
         else:
-            raise HTTPException(status_code=404, detail="User not found")
+            raise HTTPException(status_code=404, detail=f"User '{username}' not found")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 "---------------------------------------edit user---------------------------------------"
 # API for editing user data
 class EditUser(BaseModel):
@@ -394,61 +402,57 @@ async def get_all_shops():
 
     
 "-------------------------------edit shop-------------------------------"
-# API เพื่อแก้ไขข้อมูลร้านค้า
-@app.put("/edit_shop/{shop_id}/")
-async def edit_shop(shop_id: int, shop: ShopData, user_id: int):
+@app.put("/edit_shop/{shop_id}")
+async def edit_shop(shop_id: int, updated_shop: ShopData, user_id: int = Depends(get_current_user_id)):
     try:
-        # ตรวจสอบว่าร้านค้าที่ต้องการแก้ไขมีอยู่ในฐานข้อมูลหรือไม่
-        sql_select = "SELECT * FROM shop WHERE shop_id = %s AND user_id = %s"
-        mycursor.execute(sql_select, (shop_id, user_id))
+        # Check if the shop exists
+        sql_check_shop = "SELECT * FROM shop WHERE shop_id = %s"
+        mycursor.execute(sql_check_shop, (shop_id,))
         existing_shop = mycursor.fetchone()
 
-        if existing_shop:
-            # เรียกข้อมูลประเภทร้านค้าจากตาราง shop2
-            sql_select_types = "SELECT shop_type FROM shop2"
-            mycursor.execute(sql_select_types)
-            shop_types = mycursor.fetchall()
+        if not existing_shop:
+            raise HTTPException(status_code=404, detail="ร้านค้าไม่พบ")
 
-            # ดึงข้อมูลประเภทร้านค้าจากข้อมูลที่ดึงมา
-            valid_shop_types = [shop_type[0] for shop_type in shop_types]
+        # Check if the user owns the shop
+        if existing_shop[8] != user_id:
+            raise HTTPException(status_code=403, detail="ไม่มีสิทธิ์แก้ไขข้อมูลร้านค้านี้")
 
-            # ตรวจสอบว่า shop_type ที่ให้มาถูกต้องหรือไม่
-            if shop.shop_type not in valid_shop_types:
-                raise HTTPException(status_code=400, detail="ประเภทร้านค้าไม่ถูกต้อง")
+        # Update shop data in the database
+        sql_update_shop = "UPDATE shop SET shop_name = %s, shop_location = %s, shop_phone = %s, shop_map = %s, shop_time = %s, shop_picture = %s, shop_text = %s WHERE shop_id = %s"
+        val = (updated_shop.shop_name, updated_shop.shop_location, updated_shop.shop_phone, updated_shop.shop_map, updated_shop.shop_time, updated_shop.shop_picture, updated_shop.shop_type, shop_id)
+        mycursor.execute(sql_update_shop, val)
+        mydb.commit()
 
-            # อัปเดตข้อมูลร้านค้า
-            sql_update = "UPDATE shop SET shop_name = %s, shop_location = %s, shop_phone = %s, shop_map = %s, shop_time = %s, shop_picture = %s, shop_text = %s WHERE shop_id = %s AND user_id = %s"
-            val = (shop.shop_name, shop.shop_location, shop.shop_phone, shop.shop_map, shop.shop_time, shop.shop_picture, shop.shop_type, shop_id, user_id)
-            mycursor.execute(sql_update, val)
-            mydb.commit()
-
-            return {"message": "แก้ไขข้อมูลร้านค้าเรียบร้อยแล้ว"}
-        else:
-            raise HTTPException(status_code=404, detail="ไม่พบข้อมูลร้านค้าที่ต้องการแก้ไขหรือไม่มีสิทธิ์ในการแก้ไขข้อมูลร้านค้านี้")
+        return {"message": "แก้ไขข้อมูลร้านค้าเรียบร้อยแล้ว"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
 
 "-------------------------------delete shop-------------------------------"
-# API เพื่อลบข้อมูลร้านค้า
-@app.delete("/delete_shop/{shop_id}/")
-async def delete_shop(shop_id: int, user_id: int):
+@app.delete("/delete_shop/{shop_id}")
+async def delete_shop(shop_id: int, user_id: int = Depends(get_current_user_id)):
     try:
-        # ตรวจสอบว่าร้านค้าที่ต้องการลบมีอยู่ในฐานข้อมูลหรือไม่
-        sql_select = "SELECT * FROM shop WHERE shop_id = %s AND user_id = %s"
-        mycursor.execute(sql_select, (shop_id, user_id))
+        # Check if the shop exists
+        sql_check_shop = "SELECT * FROM shop WHERE shop_id = %s"
+        mycursor.execute(sql_check_shop, (shop_id,))
         existing_shop = mycursor.fetchone()
 
-        if existing_shop:
-            # ลบข้อมูลร้านค้า
-            sql_delete = "DELETE FROM shop WHERE shop_id = %s AND user_id = %s"
-            mycursor.execute(sql_delete, (shop_id, user_id))
-            mydb.commit()
+        if not existing_shop:
+            raise HTTPException(status_code=404, detail="ร้านค้าไม่พบ")
 
-            return {"message": "ลบข้อมูลร้านค้าเรียบร้อยแล้ว"}
-        else:
-            raise HTTPException(status_code=404, detail="ไม่พบข้อมูลร้านค้าที่ต้องการลบหรือไม่มีสิทธิ์ในการลบข้อมูลร้านค้านี้")
+        # Check if the user owns the shop
+        if existing_shop[8] != user_id:
+            raise HTTPException(status_code=403, detail="ไม่มีสิทธิ์ลบข้อมูลร้านค้านี้")
+
+        # Delete shop data from the database
+        sql_delete_shop = "DELETE FROM shop WHERE shop_id = %s"
+        mycursor.execute(sql_delete_shop, (shop_id,))
+        mydb.commit()
+
+        return {"message": "ลบข้อมูลร้านค้าเรียบร้อยแล้ว"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
 
 "--------------------------------create food-------------------------------"
 # API เพื่อเพิ่มข้อมูลอาหาร
@@ -550,25 +554,17 @@ async def show_all_food():
         raise HTTPException(status_code=400, detail=str(e))
 
 "-------------------------------------edit data food------------------------------------"
-
+# API to edit food data
 @app.put("/edit_food/{food_id}")
-async def edit_food(food_id: int, updated_food: Food, user_id: int = Depends(get_current_user_id)):
+async def edit_food(food_id: int, updated_food: Food):
     try:
         # Check if the food exists
         sql_check_food = "SELECT * FROM food WHERE food_id = %s"
         mycursor.execute(sql_check_food, (food_id,))
         existing_food = mycursor.fetchone()
 
-        if not existing_food:
+        if existing_food is None:
             raise HTTPException(status_code=404, detail="Food not found")
-
-        # Check if the user owns the shop where the food belongs
-        sql_check_shop = "SELECT shop_id FROM shop WHERE user_id = %s"
-        mycursor.execute(sql_check_shop, (user_id,))
-        shop = mycursor.fetchone()
-
-        if not shop or existing_food[7] != shop[0]:
-            raise HTTPException(status_code=403, detail="Unauthorized to edit this food")
 
         # Update food data in the database
         sql_update_food = "UPDATE food SET Food_name = %s, Food_name2 = %s, Food_element = %s, Food_price = %s, Food_picture = %s, Food_text2 = %s WHERE food_id = %s"
@@ -576,12 +572,12 @@ async def edit_food(food_id: int, updated_food: Food, user_id: int = Depends(get
         mycursor.execute(sql_update_food, val)
         mydb.commit()
 
-        # Delete existing food elements in foods_extraction table
+        # Delete associated food elements from foods_extraction table
         sql_delete_food_elements = "DELETE FROM foods_extraction WHERE food_id = %s"
         mycursor.execute(sql_delete_food_elements, (food_id,))
         mydb.commit()
 
-        # Insert the updated matched words into foods_extraction table
+        # Insert updated food elements into foods_extraction table
         matched_words = find_matching_words(updated_food.Food_element)
         for key, words in matched_words.items():
             for word in words:
@@ -594,28 +590,19 @@ async def edit_food(food_id: int, updated_food: Food, user_id: int = Depends(get
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    
-"-------------------------------------delte data food------------------------------------"
+# API to delete food data
 @app.delete("/delete_food/{food_id}")
-async def delete_food(food_id: int, user_id: int = Depends(get_current_user_id)):
+async def delete_food(food_id: int):
     try:
         # Check if the food exists
         sql_check_food = "SELECT * FROM food WHERE food_id = %s"
         mycursor.execute(sql_check_food, (food_id,))
         existing_food = mycursor.fetchone()
 
-        if not existing_food:
+        if existing_food is None:
             raise HTTPException(status_code=404, detail="Food not found")
 
-        # Check if the user owns the shop where the food belongs
-        sql_check_shop = "SELECT shop_id FROM shop WHERE user_id = %s"
-        mycursor.execute(sql_check_shop, (user_id,))
-        shop = mycursor.fetchone()
-
-        if not shop or existing_food[7] != shop[0]:
-            raise HTTPException(status_code=403, detail="Unauthorized to delete this food")
-
-        # Delete food from food table
+        # Delete food data from the database
         sql_delete_food = "DELETE FROM food WHERE food_id = %s"
         mycursor.execute(sql_delete_food, (food_id,))
         mydb.commit()
@@ -628,5 +615,6 @@ async def delete_food(food_id: int, user_id: int = Depends(get_current_user_id))
         return {"message": "Food deleted successfully"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
 
 

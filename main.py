@@ -316,8 +316,14 @@ class ShopData(BaseModel):
     shop_picture: str
     shop_type: str
 
+# Assuming you have a function to get the current user's ID
+def get_current_user_id():  
+    # Example implementation:
+    # return current_user.id  
+    pass
+
 @app.post("/add_shop/")
-async def add_shop(shop: ShopData, user_id: int):
+async def add_shop(shop: ShopData, user_id: int = Depends(get_current_user_id)):
     try:
         # เรียกข้อมูลประเภทร้านค้าจากตาราง shop2
         sql_select = "SELECT shop_type FROM shop2"
@@ -332,9 +338,9 @@ async def add_shop(shop: ShopData, user_id: int):
             raise HTTPException(status_code=400, detail="ประเภทร้านค้าไม่ถูกต้อง")
 
         # เพิ่มข้อมูลร้านค้าลงในฐานข้อมูล
-        sql_insert = "INSERT INTO shop (shop_name, shop_location, shop_phone, shop_map, shop_time, shop_picture, shop_text, user_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
+        sql_insert = "INSERT INTO shop (shop_name, shop_location, shop_phone, shop_map, shop_time, shop_picture, shop_text) VALUES (%s, %s, %s, %s, %s, %s, %s)"
         shop_text = shop.shop_type  # กำหนดค่าเริ่มต้นของ shop_text เป็น shop_type ที่เลือกไว้
-        val = (shop.shop_name, shop.shop_location, shop.shop_phone, shop.shop_map, shop.shop_time, shop.shop_picture, shop_text, user_id)
+        val = (shop.shop_name, shop.shop_location, shop.shop_phone, shop.shop_map, shop.shop_time, shop.shop_picture, shop_text)
         mycursor.execute(sql_insert, val)
         mydb.commit()
 

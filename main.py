@@ -329,14 +329,17 @@ class ShopData(BaseModel):
 def get_current_user_id():  
     # Example implementation:
     # return current_user.id  
-    pass
+    return {"user_id": "11"}
+    #pass
 
 @app.post("/add_shop/")
-async def add_shop(shop: ShopData, user_id: int = Depends(get_current_user_id)):
+async def add_shop(shop: ShopData, user_data: dict = Depends(get_current_user_id)):
     try:
         # Check if user is logged in
-        if not user_id:
+        if "user_id" not in user_data:
             raise HTTPException(status_code=401, detail="กรุณาล็อกอินก่อนเพิ่มร้านค้า")
+
+        user_id = user_data["user_id"]
 
         # Retrieve valid shop types from database
         sql_select = "SELECT shop_type FROM shop2"
@@ -358,7 +361,6 @@ async def add_shop(shop: ShopData, user_id: int = Depends(get_current_user_id)):
         return {"message": "เพิ่มข้อมูลร้านค้าเรียบร้อยแล้ว"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
 "-------------------------------------Show data shop------------------------------------"
 # Define Pydantic model for shop data
 class ShopInfo(BaseModel):

@@ -635,4 +635,6 @@ async def delete_food(food_id: int):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+def get_current_id():
+    return{"user_id":"11"}
 

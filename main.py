@@ -334,22 +334,24 @@ def get_current_user_id():
 @app.post("/add_shop/")
 async def add_shop(shop: ShopData, user_id: int = Depends(get_current_user_id)):
     try:
-        # เรียกข้อมูลประเภทร้านค้าจากตาราง shop2
+        # Check if user is logged in
+        if not user_id:
+            raise HTTPException(status_code=401, detail="กรุณาล็อกอินก่อนเพิ่มร้านค้า")
+
+        # Retrieve valid shop types from database
         sql_select = "SELECT shop_type FROM shop2"
         mycursor.execute(sql_select)
         shop_types = mycursor.fetchall()
-
-        # ดึงข้อมูลประเภทร้านค้าจากข้อมูลที่ดึงมา
         valid_shop_types = [shop_type[0] for shop_type in shop_types]
 
-        # ตรวจสอบว่า shop_type ที่ให้มาถูกต้องหรือไม่
+        # Validate shop type
         if shop.shop_type not in valid_shop_types:
             raise HTTPException(status_code=400, detail="ประเภทร้านค้าไม่ถูกต้อง")
 
-        # เพิ่มข้อมูลร้านค้าลงในฐานข้อมูล
-        sql_insert = "INSERT INTO shop (shop_name, shop_location, shop_phone, shop_map, shop_time, shop_picture, shop_text) VALUES (%s, %s, %s, %s, %s, %s, %s)"
-        shop_text = shop.shop_type  # กำหนดค่าเริ่มต้นของ shop_text เป็น shop_type ที่เลือกไว้
-        val = (shop.shop_name, shop.shop_location, shop.shop_phone, shop.shop_map, shop.shop_time, shop.shop_picture, shop_text)
+        # Insert shop data into database including user_id
+        sql_insert = "INSERT INTO shop (shop_name, shop_location, shop_phone, shop_map, shop_time, shop_picture, shop_text, user_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
+        shop_text = shop.shop_type
+        val = (shop.shop_name, shop.shop_location, shop.shop_phone, shop.shop_map, shop.shop_time, shop.shop_picture, shop_text, user_id)
         mycursor.execute(sql_insert, val)
         mydb.commit()
 

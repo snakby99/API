@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Form, Request
 from pydantic import BaseModel, Field
 import psycopg2
 import re
@@ -358,6 +358,7 @@ async def add_shop(shop: ShopData, user_id: int = Depends(get_current_user_id)):
         return {"message": "เพิ่มข้อมูลร้านค้าเรียบร้อยแล้ว"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
 "-------------------------------------Show data shop------------------------------------"
 # Define Pydantic model for shop data
 class ShopInfo(BaseModel):
@@ -457,7 +458,6 @@ async def delete_shop(shop_id: int, user_id: int = Depends(get_current_user_id))
 
 
 "--------------------------------create food-------------------------------"
-# API เพื่อเพิ่มข้อมูลอาหาร
 class Food(BaseModel):
     Food_name: str
     Food_name2: str
@@ -486,8 +486,8 @@ async def add_food_to_shop(food: Food, user_id: int = Depends(get_current_user_i
             shop_id = None
 
         # Insert food data into the database
-        sql_insert_food = "INSERT INTO food (Food_name, Food_name2, Food_element, Food_price, Food_picture, Food_text2, shop_id) VALUES (%s, %s, %s, %s, %s, %s, %s)"
-        val = (food.Food_name, food.Food_name2, food.Food_element, food.Food_price, food.Food_picture, food.Food_text2, shop_id)
+        sql_insert_food = "INSERT INTO food (Food_name, Food_name2, Food_element, Food_price, Food_picture, shop_id) VALUES (%s, %s, %s, %s, %s, %s)"
+        val = (food.Food_name, food.Food_name2, food.Food_element, food.Food_price, food.Food_picture, shop_id)
         mycursor.execute(sql_insert_food, val)
         mydb.commit()
 
@@ -507,7 +507,7 @@ async def add_food_to_shop(food: Food, user_id: int = Depends(get_current_user_i
         return {"message": "Food added to shop successfully"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-    
+
 # Function to find matching words from dataset
 def find_matching_words(input_text):
     matched_words = {}
@@ -516,6 +516,22 @@ def find_matching_words(input_text):
         matched_words[key] = [word for word in words if re.search(word, input_text)]
 
     return matched_words
+
+# เพิ่มเมธอดสำหรับดึงข้อมูล food_name จากฐานข้อมูล
+def get_food_names():
+    food_names = []
+    # Query เพื่อดึงข้อมูล food_name จากฐานข้อมูล
+    sql_get_food_names = "SELECT Food_name FROM food"
+    mycursor.execute(sql_get_food_names)
+    result = mycursor.fetchall()
+    for row in result:
+        food_names.append(row[0])
+    return food_names
+
+
+@app.get("/food_names/")
+async def read_food_names():
+    return {"food_names": get_food_names()}
 
 "-------------------------------------Show data food------------------------------------"
 

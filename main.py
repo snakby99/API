@@ -329,17 +329,15 @@ class ShopData(BaseModel):
 def get_current_user_id():  
     # Example implementation:
     # return current_user.id  
-    return {"user_id": "11"}
+    return 11
     #pass
 
 @app.post("/add_shop/")
-async def add_shop(shop: ShopData, user_data: dict = Depends(get_current_user_id)):
+async def add_shop(shop: ShopData, user_id: int = Depends(get_current_user_id)):
     try:
         # Check if user is logged in
-        if "user_id" not in user_data:
+        if not user_id:
             raise HTTPException(status_code=401, detail="กรุณาล็อกอินก่อนเพิ่มร้านค้า")
-
-        user_id = user_data["user_id"]
 
         # Retrieve valid shop types from database
         sql_select = "SELECT shop_type FROM shop2"
@@ -361,6 +359,7 @@ async def add_shop(shop: ShopData, user_data: dict = Depends(get_current_user_id
         return {"message": "เพิ่มข้อมูลร้านค้าเรียบร้อยแล้ว"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
 "-------------------------------------Show data shop------------------------------------"
 # Define Pydantic model for shop data
 class ShopInfo(BaseModel):
@@ -471,25 +470,29 @@ class Food(BaseModel):
 @app.post("/add_food/")
 async def add_food_to_shop(food: Food, user_id: int = Depends(get_current_user_id)):
     try:
-        if not food.Food_name or not food.Food_element or not food.Food_price:
-            raise HTTPException(status_code=400, detail="Food data is incomplete")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="กรุณาล็อกอินก่อนเพิ่มข้อมูลอาหาร")
 
-        if food.Food_price <= 0:
-            raise HTTPException(status_code=400, detail="Invalid food price")
-
-        # Check if the shop exists for the current user
+        # Check if the user has a shop
         sql_check_shop = "SELECT shop_id FROM shop WHERE user_id = %s"
         mycursor.execute(sql_check_shop, (user_id,))
         shop = mycursor.fetchone()
 
-        if shop:
-            shop_id = shop[0]
-        else:
-            shop_id = None
+        if not shop:
+            raise HTTPException(status_code=400, detail="กรุณาสร้างร้านค้าก่อนเพิ่มข้อมูลอาหาร")
 
-        # Insert food data into the database
-        sql_insert_food = "INSERT INTO food (Food_name, Food_name2, Food_element, Food_price, Food_picture, shop_id) VALUES (%s, %s, %s, %s, %s, %s)"
-        val = (food.Food_name, food.Food_name2, food.Food_element, food.Food_price, food.Food_picture, shop_id)
+        # Extract the shop_id
+        shop_id = shop[0]
+
+        if not food.Food_name or not food.Food_element or not food.Food_price:
+            raise HTTPException(status_code=400, detail="ข้อมูลอาหารไม่สมบูรณ์")
+
+        if food.Food_price <= 0:
+            raise HTTPException(status_code=400, detail="ราคาอาหารไม่ถูกต้อง")
+
+        # Insert food data into the database with shop_id
+        sql_insert_food = "INSERT INTO food (Food_name, Food_name2, Food_element, Food_price, Food_picture, Food_text2, shop_id) VALUES (%s, %s, %s, %s, %s, %s, %s)"
+        val = (food.Food_name, food.Food_name2, food.Food_element, food.Food_price, food.Food_picture, food.Food_text2, shop_id)
         mycursor.execute(sql_insert_food, val)
         mydb.commit()
 
@@ -506,7 +509,7 @@ async def add_food_to_shop(food: Food, user_id: int = Depends(get_current_user_i
                 mycursor.execute(sql_insert_extraction, val_extraction)
                 mydb.commit()
 
-        return {"message": "Food added to shop successfully"}
+        return {"message": "เพิ่มข้อมูลอาหารเรียบร้อยแล้ว"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

@@ -325,6 +325,9 @@ class ShopData(BaseModel):
     shop_picture: str
     shop_type: str
 
+# สร้างตัวแปรเก็บข้อมูลการเพิ่มร้านค้าของผู้ใช้
+added_shops = {}
+
 # Assuming you have a function to get the current user's ID
 def get_current_user_id():  
     # Example implementation:
@@ -335,6 +338,9 @@ def get_current_user_id():
 @app.post("/add_shop/")
 async def add_shop(shop: ShopData, user_id: int = Depends(get_current_user_id)):
     try:
+        if user_id in added_shops:
+            raise HTTPException(status_code=400, detail="คุณได้เพิ่มร้านค้าไปแล้ว")
+        
         # Check if user is logged in
         if not user_id:
             raise HTTPException(status_code=401, detail="กรุณาล็อกอินก่อนเพิ่มร้านค้า")
@@ -348,6 +354,9 @@ async def add_shop(shop: ShopData, user_id: int = Depends(get_current_user_id)):
         # Validate shop type
         if shop.shop_type not in valid_shop_types:
             raise HTTPException(status_code=400, detail="ประเภทร้านค้าไม่ถูกต้อง")
+        
+        # เก็บข้อมูลการเพิ่มร้านค้าของผู้ใช้
+        added_shops[user_id] = True
 
         # Insert shop data into database including user_id
         sql_insert = "INSERT INTO shop (shop_name, shop_location, shop_phone, shop_map, shop_time, shop_picture, shop_text, user_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"

@@ -576,16 +576,21 @@ def get_food_names():
 @app.get("/food_names/")
 async def read_food_names():
     food_names = get_food_names()
-    food_data = {}
+    food_data = []
 
     for food_name in food_names:
         # Query เพื่อดึงข้อมูล Food_element จากตาราง foods_extraction
         sql_get_food_element = "SELECT food_element FROM foods_extraction WHERE food_name = %s"
         mycursor.execute(sql_get_food_element, (food_name,))
         food_elements = mycursor.fetchall()
-        food_data[food_name] = [food_element[0] for food_element in food_elements]
+        
+        # สร้าง list เพื่อเก็บ food_element ที่มี food_name เดียวกัน
+        elements_combined = ' '.join([food_element[0] for food_element in food_elements])
+        food_data.append({"food_name": food_name, "food_element": elements_combined})
 
-    return {"food_names_with_elements": food_data}
+    return  food_data
+
+
 "-------------------------------------Show data food------------------------------------"
 
 @app.get("/show_all_food/")

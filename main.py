@@ -175,6 +175,9 @@ class Login(BaseModel):
     username: str
     password: str
 
+logged_in_users = {}
+
+# API for user login
 @app.post("/login/")
 async def login(user_input: Login):
     try:
@@ -188,11 +191,49 @@ async def login(user_input: Login):
             stored_password_hash = user[4]
             # Check if the stored password hash is a valid bcrypt hash
             if bcrypt.verify(user_input.password, stored_password_hash):
-                return {"message": "Login successful"}
+                # Generate Access Token for the user
+                access_token = generate_access_token(user[0])
+                # Update login status
+                logged_in_users[user[0]] = True
+                return {"message": "Login successful", "access_token": access_token}
             else:
                 raise HTTPException(status_code=401, detail="Invalid username or password")
         else:
             raise HTTPException(status_code=401, detail="Invalid username or password")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+# Function to generate Access Token
+def generate_access_token(user_id):
+    # Here you can use JWT or any other method to generate the access token
+    return f"access_token_{user_id}"
+
+# Function to validate Access Token
+def validate_access_token(access_token):
+    # Here you validate the access token, check if it's valid and extract user_id from it
+    # For example, if the access token format is "access_token_{user_id}", you can extract user_id from it
+    # You also need to check if the user with that user_id is logged in
+    user_id = access_token.split("_")[1]
+    if logged_in_users.get(user_id):
+        return user_id
+    else:
+        return None
+    
+"---------------------------------------logout---------------------------------------"
+# API for user logout
+@app.post("/logout/")
+async def logout():
+    try:
+        # Assuming you have a function to get the current user's ID
+        user_id = get_current_user_id()
+        
+        # Check if the user is logged in
+        if user_id:
+            # Update login status
+            logged_in_users[user_id] = False
+            return {"message": "Logged out successfully"}
+        else:
+            raise HTTPException(status_code=401, detail="You are not logged in")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 "-------------------------------------Show data user------------------------------------"
@@ -303,16 +344,6 @@ async def delete_user(user_id: int):
             raise HTTPException(status_code=404, detail="User not found")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
-"---------------------------------------logout---------------------------------------"
-# API for user logout
-@app.post("/logout/")
-async def logout():
-    try:
-        # You can add any additional logout logic here if needed
-        return {"message": "Logged out successfully"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 "--------------------------------create shop-------------------------------"
 # API เพื่อเพิ่มข้อมูลร้านค้า
@@ -332,8 +363,8 @@ added_shops = {}
 def get_current_user_id():  
     # Example implementation:
     # return current_user.id  
-    #return 
-    pass
+    return 18
+    #pass
 
 @app.post("/add_shop/")
 async def add_shop(shop: ShopData, user_id: int = Depends(get_current_user_id)):
@@ -558,6 +589,8 @@ async def read_food_names():
         food_data.append({"food_name": food_name, "food_element": elements_combined})
 
     return  food_data
+
+
 "-------------------------------------Show data food------------------------------------"
 
 @app.get("/show_all_food/")

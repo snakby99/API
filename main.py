@@ -363,7 +363,7 @@ added_shops = {}
 def get_current_user_id():  
     # Example implementation:
     # return current_user.id  
-    #return 11
+    #return 18
     pass
 
 @app.post("/add_shop/")

@@ -499,6 +499,7 @@ async def delete_shop(shop_id: int, user_id: int = Depends(get_current_user_id))
 
 
 "--------------------------------create food-------------------------------"
+# คลาส Food เพื่อรับข้อมูลอาหาร
 class Food(BaseModel):
     Food_name: str
     Food_name2: str
@@ -507,13 +508,14 @@ class Food(BaseModel):
     Food_picture: str
     Food_text2: str
 
+# เพิ่มข้อมูลอาหารไปยังร้านค้า
 @app.post("/add_food/")
 async def add_food_to_shop(food: Food, user_id: int = Depends(get_current_user_id)):
     try:
         if not user_id:
             raise HTTPException(status_code=401, detail="กรุณาล็อกอินก่อนเพิ่มข้อมูลอาหาร")
 
-        # Check if the user has a shop
+        # ตรวจสอบว่าผู้ใช้มีร้านค้าหรือไม่
         sql_check_shop = "SELECT shop_id FROM shop WHERE user_id = %s"
         mycursor.execute(sql_check_shop, (user_id,))
         shop = mycursor.fetchone()
@@ -521,7 +523,7 @@ async def add_food_to_shop(food: Food, user_id: int = Depends(get_current_user_i
         if not shop:
             raise HTTPException(status_code=400, detail="กรุณาสร้างร้านค้าก่อนเพิ่มข้อมูลอาหาร")
 
-        # Extract the shop_id
+        # ดึง shop_id
         shop_id = shop[0]
 
         if not food.Food_name or not food.Food_element or not food.Food_price:
@@ -530,30 +532,38 @@ async def add_food_to_shop(food: Food, user_id: int = Depends(get_current_user_i
         if food.Food_price <= 0:
             raise HTTPException(status_code=400, detail="ราคาอาหารไม่ถูกต้อง")
 
-        # Insert food data into the database with shop_id
+        # เพิ่มข้อมูลอาหารลงในฐานข้อมูลพร้อมกับ shop_id
         sql_insert_food = "INSERT INTO food (Food_name, Food_name2, Food_element, Food_price, Food_picture, Food_text2, shop_id) VALUES (%s, %s, %s, %s, %s, %s, %s)"
         val = (food.Food_name, food.Food_name2, food.Food_element, food.Food_price, food.Food_picture, food.Food_text2, shop_id)
         mycursor.execute(sql_insert_food, val)
         mydb.commit()
 
-        # Fetch the last inserted food id
+        # ดึง food id ที่เพิ่มล่าสุด
         mycursor.execute("SELECT lastval()")
         last_food_id = mycursor.fetchone()[0]
 
-        # Insert the matched words into foods_extraction table
+        # เพิ่มคำที่ตรงกันลงในตาราง foods_extraction
         matched_words = find_matching_words(food.Food_element)
         for key, words in matched_words.items():
             for word in words:
-                sql_insert_extraction = "INSERT INTO foods_extraction (food_id, food_name, food_element) VALUES (%s, %s, %s)"
-                val_extraction = (last_food_id, food.Food_name, word)
-                mycursor.execute(sql_insert_extraction, val_extraction)
-                mydb.commit()
+                # ตรวจสอบว่าคำนั้นมีอยู่ในตารางอยู่แล้วหรือไม่
+                sql_check_existing = "SELECT COUNT(*) FROM foods_extraction WHERE food_id = %s AND food_element = %s"
+                val_check_existing = (last_food_id, word)
+                mycursor.execute(sql_check_existing, val_check_existing)
+                result = mycursor.fetchone()
+
+                # ถ้ายังไม่มีคำนั้นในตาราง ก็เพิ่มข้อมูล
+                if result[0] == 0:
+                    sql_insert_extraction = "INSERT INTO foods_extraction (food_id, food_name, food_element) VALUES (%s, %s, %s)"
+                    val_extraction = (last_food_id, food.Food_name, word)
+                    mycursor.execute(sql_insert_extraction, val_extraction)
+                    mydb.commit()
 
         return {"message": "เพิ่มข้อมูลอาหารเรียบร้อยแล้ว"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-# Function to find matching words from dataset
+# ฟังก์ชันเพื่อค้นหาคำที่ตรงกันในชุดข้อมูล
 def find_matching_words(input_text):
     matched_words = {}
 

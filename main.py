@@ -363,8 +363,8 @@ added_shops = {}
 def get_current_user_id():  
     # Example implementation:
     # return current_user.id  
-    return 18
-    #pass
+    #return 18
+    pass
 
 @app.post("/add_shop/")
 async def add_shop(shop: ShopData, user_id: int = Depends(get_current_user_id)):

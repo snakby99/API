@@ -175,6 +175,9 @@ class Login(BaseModel):
     username: str
     password: str
 
+logged_in_users = {}
+
+# API for user login
 @app.post("/login/")
 async def login(user_input: Login):
     try:
@@ -188,11 +191,47 @@ async def login(user_input: Login):
             stored_password_hash = user[4]
             # Check if the stored password hash is a valid bcrypt hash
             if bcrypt.verify(user_input.password, stored_password_hash):
-                return {"message": "Login successful"}
+                # Generate Access Token for the user
+                access_token = generate_access_token(user[0])
+                # Update login status
+                logged_in_users[user[0]] = True
+                return {"message": "Login successful", "access_token": access_token}
             else:
                 raise HTTPException(status_code=401, detail="Invalid username or password")
         else:
             raise HTTPException(status_code=401, detail="Invalid username or password")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+# Function to generate Access Token
+def generate_access_token(user_id):
+    # Here you can use JWT or any other method to generate the access token
+    return f"access_token_{user_id}"
+
+# Function to validate Access Token
+def validate_access_token(access_token):
+    # Here you validate the access token, check if it's valid and extract user_id from it
+    # For example, if the access token format is "access_token_{user_id}", you can extract user_id from it
+    # You also need to check if the user with that user_id is logged in
+    user_id = access_token.split("_")[1]
+    if logged_in_users.get(user_id):
+        return user_id
+    else:
+        return None
+    
+"---------------------------------------logout---------------------------------------"
+# API for user logout
+@app.post("/logout/")
+async def logout(access_token: str):
+    try:
+        # Check if the access token is valid
+        user_id = validate_access_token(access_token)
+        if user_id:
+            # Update login status
+            logged_in_users[user_id] = False
+            return {"message": "Logged out successfully"}
+        else:
+            raise HTTPException(status_code=401, detail="Invalid access token")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 "-------------------------------------Show data user------------------------------------"
@@ -301,16 +340,6 @@ async def delete_user(user_id: int):
             return {"message": "User deleted successfully"}
         else:
             raise HTTPException(status_code=404, detail="User not found")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    
-"---------------------------------------logout---------------------------------------"
-# API for user logout
-@app.post("/logout/")
-async def logout():
-    try:
-        # You can add any additional logout logic here if needed
-        return {"message": "Logged out successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -542,11 +571,19 @@ def get_food_names():
         food_names.append(row[0])
     return food_names
 
-
 @app.get("/food_names/")
 async def read_food_names():
-    return {"food_names": get_food_names()}
+    food_names = get_food_names()
+    food_data = {}
 
+    for food_name in food_names:
+        # Query เพื่อดึงข้อมูล Food_element จากตาราง foods_extraction
+        sql_get_food_element = "SELECT food_element FROM foods_extraction WHERE food_name = %s"
+        mycursor.execute(sql_get_food_element, (food_name,))
+        food_elements = mycursor.fetchall()
+        food_data[food_name] = [food_element[0] for food_element in food_elements]
+
+    return {"food_names_with_elements": food_data}
 "-------------------------------------Show data food------------------------------------"
 
 @app.get("/show_all_food/")

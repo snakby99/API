@@ -325,15 +325,22 @@ class ShopData(BaseModel):
     shop_picture: str
     shop_type: str
 
+# สร้างตัวแปรเก็บข้อมูลการเพิ่มร้านค้าของผู้ใช้
+added_shops = {}
+
 # Assuming you have a function to get the current user's ID
 def get_current_user_id():  
     # Example implementation:
     # return current_user.id  
+    #return 
     pass
 
 @app.post("/add_shop/")
 async def add_shop(shop: ShopData, user_id: int = Depends(get_current_user_id)):
     try:
+        if user_id in added_shops:
+            raise HTTPException(status_code=400, detail="คุณได้เพิ่มร้านค้าไปแล้ว")
+        
         # Check if user is logged in
         if not user_id:
             raise HTTPException(status_code=401, detail="กรุณาล็อกอินก่อนเพิ่มร้านค้า")
@@ -347,6 +354,9 @@ async def add_shop(shop: ShopData, user_id: int = Depends(get_current_user_id)):
         # Validate shop type
         if shop.shop_type not in valid_shop_types:
             raise HTTPException(status_code=400, detail="ประเภทร้านค้าไม่ถูกต้อง")
+        
+        # เก็บข้อมูลการเพิ่มร้านค้าของผู้ใช้
+        added_shops[user_id] = True
 
         # Insert shop data into database including user_id
         sql_insert = "INSERT INTO shop (shop_name, shop_location, shop_phone, shop_map, shop_time, shop_picture, shop_text, user_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
@@ -469,25 +479,29 @@ class Food(BaseModel):
 @app.post("/add_food/")
 async def add_food_to_shop(food: Food, user_id: int = Depends(get_current_user_id)):
     try:
-        if not food.Food_name or not food.Food_element or not food.Food_price:
-            raise HTTPException(status_code=400, detail="Food data is incomplete")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="กรุณาล็อกอินก่อนเพิ่มข้อมูลอาหาร")
 
-        if food.Food_price <= 0:
-            raise HTTPException(status_code=400, detail="Invalid food price")
-
-        # Check if the shop exists for the current user
+        # Check if the user has a shop
         sql_check_shop = "SELECT shop_id FROM shop WHERE user_id = %s"
         mycursor.execute(sql_check_shop, (user_id,))
         shop = mycursor.fetchone()
 
-        if shop:
-            shop_id = shop[0]
-        else:
-            shop_id = None
+        if not shop:
+            raise HTTPException(status_code=400, detail="กรุณาสร้างร้านค้าก่อนเพิ่มข้อมูลอาหาร")
 
-        # Insert food data into the database
-        sql_insert_food = "INSERT INTO food (Food_name, Food_name2, Food_element, Food_price, Food_picture, shop_id) VALUES (%s, %s, %s, %s, %s, %s)"
-        val = (food.Food_name, food.Food_name2, food.Food_element, food.Food_price, food.Food_picture, shop_id)
+        # Extract the shop_id
+        shop_id = shop[0]
+
+        if not food.Food_name or not food.Food_element or not food.Food_price:
+            raise HTTPException(status_code=400, detail="ข้อมูลอาหารไม่สมบูรณ์")
+
+        if food.Food_price <= 0:
+            raise HTTPException(status_code=400, detail="ราคาอาหารไม่ถูกต้อง")
+
+        # Insert food data into the database with shop_id
+        sql_insert_food = "INSERT INTO food (Food_name, Food_name2, Food_element, Food_price, Food_picture, Food_text2, shop_id) VALUES (%s, %s, %s, %s, %s, %s, %s)"
+        val = (food.Food_name, food.Food_name2, food.Food_element, food.Food_price, food.Food_picture, food.Food_text2, shop_id)
         mycursor.execute(sql_insert_food, val)
         mydb.commit()
 
@@ -504,7 +518,7 @@ async def add_food_to_shop(food: Food, user_id: int = Depends(get_current_user_i
                 mycursor.execute(sql_insert_extraction, val_extraction)
                 mydb.commit()
 
-        return {"message": "Food added to shop successfully"}
+        return {"message": "เพิ่มข้อมูลอาหารเรียบร้อยแล้ว"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -528,11 +542,22 @@ def get_food_names():
         food_names.append(row[0])
     return food_names
 
-
 @app.get("/food_names/")
 async def read_food_names():
-    return {"food_names": get_food_names()}
+    food_names = get_food_names()
+    food_data = []
 
+    for food_name in food_names:
+        # Query เพื่อดึงข้อมูล Food_element จากตาราง foods_extraction
+        sql_get_food_element = "SELECT food_element FROM foods_extraction WHERE food_name = %s"
+        mycursor.execute(sql_get_food_element, (food_name,))
+        food_elements = mycursor.fetchall()
+        
+        # สร้าง list เพื่อเก็บ food_element ที่มี food_name เดียวกัน
+        elements_combined = ' '.join([food_element[0] for food_element in food_elements])
+        food_data.append({"food_name": food_name, "food_element": elements_combined})
+
+    return  food_data
 "-------------------------------------Show data food------------------------------------"
 
 @app.get("/show_all_food/")
@@ -635,6 +660,4 @@ async def delete_food(food_id: int):
         raise HTTPException(status_code=400, detail=str(e))
 
 
-def get_current_id():
-    return{"user_id":"11"}
 

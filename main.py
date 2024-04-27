@@ -222,16 +222,18 @@ def validate_access_token(access_token):
 "---------------------------------------logout---------------------------------------"
 # API for user logout
 @app.post("/logout/")
-async def logout(access_token: str):
+async def logout():
     try:
-        # Check if the access token is valid
-        user_id = validate_access_token(access_token)
+        # Assuming you have a function to get the current user's ID
+        user_id = get_current_user_id()
+        
+        # Check if the user is logged in
         if user_id:
             # Update login status
             logged_in_users[user_id] = False
             return {"message": "Logged out successfully"}
         else:
-            raise HTTPException(status_code=401, detail="Invalid access token")
+            raise HTTPException(status_code=401, detail="You are not logged in")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 "-------------------------------------Show data user------------------------------------"

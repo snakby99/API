@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 from pydantic import BaseModel
-#from passlib.hash import bcrypt
+from passlib.hash import bcrypt
 from typing import List
 import jwt
 from datetime import datetime, timedelta

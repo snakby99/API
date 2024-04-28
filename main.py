@@ -10,14 +10,15 @@ from datetime import datetime, timedelta
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
+from datetime import datetime, timezone
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 from pydantic import BaseModel
 from passlib.hash import bcrypt
 from typing import List
 import jwt
-from datetime import datetime, timedelta
 from fastapi.responses import JSONResponse
+
 
 
 # Initialize FastAPI app
@@ -212,7 +213,7 @@ async def login(user_input: Login):
                 # Update login status
                 logged_in_users[user[0]] = True
                 # Generate JWT token
-                token = create_jwt_token(user[0])
+                token = create_jwt_token(user[0], user[1], user[2], user[3], user[4], user[5], user[6])
                 # Return additional user information
                 return {"message": "Login successful", "token": token, "username": user[3], "picture": user[6]}
             else:
@@ -221,6 +222,45 @@ async def login(user_input: Login):
             raise HTTPException(status_code=401, detail="Invalid username or password")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+"---------------------------------------authorize---------------------------------------"
+
+# HTTP Bearer token for authorization
+bearer_scheme = HTTPBearer()
+
+
+# HTTP Bearer token for authorization
+bearer_scheme = HTTPBearer()
+
+# สร้าง JWT token
+def create_jwt_token(user_id: int, firstname: str, lastname: str, username: str, password: str, phone: str, picture: str) -> str:
+    payload = {
+        "user_id": user_id,
+        "username": username,
+        "picture": picture,
+        "exp": datetime.utcnow() + timedelta(minutes=15)  # เวลาหมดอายุ 15 นาทีจากขณะนี้
+    }
+    token = jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+    return token
+
+# API for authorization
+@app.get("/authorize/")
+async def authorize(credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
+    try:
+        # Extract token from authorization header
+        token = credentials.credentials
+        # Decode JWT token
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        # ตรวจสอบว่าข้อมูลมีอยู่ใน payload หรือไม่ และส่งกลับค่าที่เหมาะสม
+        return {
+            "message": "Authorization successful",
+            "user_id": payload.get("user_id"),
+            "username": payload.get("username"),
+            "picture": payload.get("picture")
+        }
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token has expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
 "---------------------------------------logout---------------------------------------"
 # API for user logout
 @app.post("/logout/")
@@ -330,6 +370,18 @@ class ShopData(BaseModel):
 # Variable to store user-added shop data
 added_shops = {}
 
+# Function to check if user already added a shop
+def user_added_shop(user_id: str) -> bool:
+    return user_id in added_shops
+
+# Function to check if shop already exists
+def shop_exists(shop_name: str, shop_location: str) -> bool:
+    sql_select = "SELECT COUNT(*) FROM shop WHERE shop_name = %s AND shop_location = %s"
+    val = (shop_name, shop_location)
+    mycursor.execute(sql_select, val)
+    count = mycursor.fetchone()[0]
+    return count > 0
+
 @app.post("/add_shop/")
 async def add_shop(shop: ShopData, credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
     try:
@@ -339,6 +391,14 @@ async def add_shop(shop: ShopData, credentials: HTTPAuthorizationCredentials = D
         # Check if the user is logged in
         if user_id not in logged_in_users:
             raise HTTPException(status_code=401, detail="User not logged in")
+
+        # Check if the user already added a shop
+        if user_added_shop(user_id):
+            raise HTTPException(status_code=400, detail="User already added a shop")
+
+        # Check if the shop already exists
+        if shop_exists(shop.shop_name, shop.shop_location):
+            raise HTTPException(status_code=400, detail="Shop already exists")
 
         # Add user id to shop data
         shop_data_with_user_id = shop.dict()
@@ -359,6 +419,9 @@ async def add_shop(shop: ShopData, credentials: HTTPAuthorizationCredentials = D
         val = (shop.shop_name, shop.shop_location, shop.shop_phone, shop.shop_time, shop.shop_picture, shop_text, user_id)
         mycursor.execute(sql_insert, val)
         mydb.commit()
+
+        # Add user_id to added_shops
+        added_shops[user_id] = True
 
         return {"message": "Shop data added successfully"}
     except Exception as e:
@@ -662,11 +725,4 @@ async def delete_food(food_id: int, credentials: HTTPAuthorizationCredentials = 
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-def authenticate(api_key: Optional[str] = Header(None)):
-    if api_key != "your_secret_api_key":
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    return True
 
-@app.get("/protected-route")
-async def protected_route(authenticated: bool = Depends(authenticate)):
-    return {"message": "You are authenticated!"}

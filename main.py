@@ -208,7 +208,8 @@ async def login(user_input: Login):
                 logged_in_users[user[0]] = True
                 # Generate JWT token
                 token = create_jwt_token(user[0])
-                return {"message": "Login successful", "token": token}
+                # Return additional user information
+                return {"message": "Login successful", "token": token, "username": user[3], "picture": user[6]}
             else:
                 raise HTTPException(status_code=401, detail="Invalid username or password")
         else:
@@ -297,6 +298,21 @@ async def delete_user(user_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 "--------------------------------create shop-------------------------------"
+# Function to get user id from JWT token
+def get_user_id_from_token(token: str):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        user_id = payload.get("user_id")
+        return user_id
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+        )
+
+# HTTPBearer object for token authentication
+bearer_scheme = HTTPBearer()
+
 # API to add shop data
 class ShopData(BaseModel):
     shop_name: str
@@ -310,8 +326,19 @@ class ShopData(BaseModel):
 added_shops = {}
 
 @app.post("/add_shop/")
-async def add_shop(shop: ShopData):
+async def add_shop(shop: ShopData, credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
     try:
+        # Get user id from token
+        user_id = get_user_id_from_token(credentials.credentials)
+
+        # Check if the user is logged in
+        if user_id not in logged_in_users:
+            raise HTTPException(status_code=401, detail="User not logged in")
+
+        # Add user id to shop data
+        shop_data_with_user_id = shop.dict()
+        shop_data_with_user_id["user_id"] = user_id
+
         # Check if the shop type is valid
         sql_select = "SELECT shop_type FROM shop2"
         mycursor.execute(sql_select)
@@ -322,16 +349,15 @@ async def add_shop(shop: ShopData):
             raise HTTPException(status_code=400, detail="Invalid shop type")
         
         # Add shop data to the database
-        sql_insert = "INSERT INTO shop (shop_name, shop_location, shop_phone,  shop_time, shop_picture, shop_text) VALUES (%s, %s, %s, %s, %s, %s)"
+        sql_insert = "INSERT INTO shop (shop_name, shop_location, shop_phone, shop_time, shop_picture, shop_text, user_id) VALUES (%s, %s, %s, %s, %s, %s, %s)"
         shop_text = shop.shop_type
-        val = (shop.shop_name, shop.shop_location, shop.shop_phone, shop.shop_time, shop.shop_picture, shop_text)
+        val = (shop.shop_name, shop.shop_location, shop.shop_phone, shop.shop_time, shop.shop_picture, shop_text, user_id)
         mycursor.execute(sql_insert, val)
         mydb.commit()
 
         return {"message": "Shop data added successfully"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
 "-------------------------------------Show data shop------------------------------------"
 # Define Pydantic model for shop data
 class ShopInfo(BaseModel):
@@ -371,11 +397,18 @@ async def get_all_shops():
             raise HTTPException(status_code=404, detail="No shops found")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 "-------------------------------edit shop-------------------------------"
+# API for editing shop data
 @app.put("/edit_shop/{shop_id}")
-async def edit_shop(shop_id: int, updated_shop: ShopData):
+async def edit_shop(shop_id: int, updated_shop: ShopData, credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
     try:
+        # Get user id from token
+        user_id = get_user_id_from_token(credentials.credentials)
+
+        # Check if the user is logged in
+        if user_id not in logged_in_users:
+            raise HTTPException(status_code=401, detail="User not logged in")
+
         # Check if the shop exists
         sql_check_shop = "SELECT * FROM shop WHERE shop_id = %s"
         mycursor.execute(sql_check_shop, (shop_id,))
@@ -383,6 +416,10 @@ async def edit_shop(shop_id: int, updated_shop: ShopData):
 
         if not existing_shop:
             raise HTTPException(status_code=404, detail="Shop not found")
+
+        # Check if the user is the owner of the shop
+        if existing_shop[7] != user_id:
+            raise HTTPException(status_code=403, detail="Unauthorized to edit this shop")
 
         # Update shop data in the database
         sql_update_shop = "UPDATE shop SET shop_name = %s, shop_location = %s, shop_phone = %s, shop_time = %s, shop_picture = %s, shop_text = %s WHERE shop_id = %s"
@@ -394,11 +431,18 @@ async def edit_shop(shop_id: int, updated_shop: ShopData):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
 "-------------------------------delete shop-------------------------------"
+# API for deleting shop
 @app.delete("/delete_shop/{shop_id}")
-async def delete_shop(shop_id: int):
+async def delete_shop(shop_id: int, credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
     try:
+        # Get user id from token
+        user_id = get_user_id_from_token(credentials.credentials)
+
+        # Check if the user is logged in
+        if user_id not in logged_in_users:
+            raise HTTPException(status_code=401, detail="User not logged in")
+
         # Check if the shop exists
         sql_check_shop = "SELECT * FROM shop WHERE shop_id = %s"
         mycursor.execute(sql_check_shop, (shop_id,))
@@ -406,6 +450,10 @@ async def delete_shop(shop_id: int):
 
         if not existing_shop:
             raise HTTPException(status_code=404, detail="Shop not found")
+
+        # Check if the user is the owner of the shop
+        if existing_shop[7] != user_id:
+            raise HTTPException(status_code=403, detail="Unauthorized to delete this shop")
 
         # Delete shop data from the database
         sql_delete_shop = "DELETE FROM shop WHERE shop_id = %s"
@@ -415,7 +463,6 @@ async def delete_shop(shop_id: int):
         return {"message": "Shop deleted successfully"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
 
 "--------------------------------create food-------------------------------"
 # Class to receive food data

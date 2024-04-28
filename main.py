@@ -24,8 +24,8 @@ translator = Translator()
 mydb = psycopg2.connect(
     host="localhost",
     user="postgres",
-    password="1234",
-    database="Project"
+    password="123456789",
+    database="project"
 )
 mycursor = mydb.cursor()
 
@@ -362,8 +362,8 @@ added_shops = {}
 def get_current_user_id():  
     # Example implementation:
     # return current_user.id  
-    return 52
-    #pass
+    #return 11
+    pass
 
 @app.post("/add_shop/")
 async def add_shop(shop: ShopData, user_id: int = Depends(get_current_user_id)):
@@ -499,7 +499,6 @@ async def delete_shop(shop_id: int, user_id: int = Depends(get_current_user_id))
 # คลาส Food เพื่อรับข้อมูลอาหาร
 class Food(BaseModel):
     Food_name: str
-    Food_name2: str
     Food_element: str
     Food_price: float
     Food_picture: str
@@ -530,8 +529,8 @@ async def add_food_to_shop(food: Food, user_id: int = Depends(get_current_user_i
             raise HTTPException(status_code=400, detail="ราคาอาหารไม่ถูกต้อง")
 
         # เพิ่มข้อมูลอาหารลงในฐานข้อมูลพร้อมกับ shop_id
-        sql_insert_food = "INSERT INTO food (Food_name, Food_name2, Food_element, Food_price, Food_picture, Food_text2, shop_id) VALUES (%s, %s, %s, %s, %s, %s, %s)"
-        val = (food.Food_name, food.Food_name2, food.Food_element, food.Food_price, food.Food_picture, food.Food_text2, shop_id)
+        sql_insert_food = "INSERT INTO food (Food_name, Food_element, Food_price, Food_picture, Food_text2, shop_id) VALUES (%s, %s, %s, %s, %s, %s)"
+        val = (food.Food_name, food.Food_element, food.Food_price, food.Food_picture, food.Food_text2, shop_id)
         mycursor.execute(sql_insert_food, val)
         mydb.commit()
 
@@ -614,11 +613,10 @@ async def show_all_food():
             food_dict = {
                 "food_id": food[0],
                 "Food_name": food[1],
-                "Food_name2": food[2],
-                "Food_element": food[3],
-                "Food_price": food[4],
-                "Food_picture": food[5],
-                "Food_text2": food[6],
+                "Food_element": food[2],
+                "Food_price": food[3],
+                "Food_picture": food[4],
+                "Food_text2": food[5],
                 "food_elements": []
             }
 
@@ -650,8 +648,8 @@ async def edit_food(food_id: int, updated_food: Food):
             raise HTTPException(status_code=404, detail="Food not found")
 
         # Update food data in the database
-        sql_update_food = "UPDATE food SET Food_name = %s, Food_name2 = %s, Food_element = %s, Food_price = %s, Food_picture = %s, Food_text2 = %s WHERE food_id = %s"
-        val = (updated_food.Food_name, updated_food.Food_name2, updated_food.Food_element, updated_food.Food_price, updated_food.Food_picture, updated_food.Food_text2, food_id)
+        sql_update_food = "UPDATE food SET Food_name = %s, Food_element = %s, Food_price = %s, Food_picture = %s, Food_text2 = %s WHERE food_id = %s"
+        val = (updated_food.Food_name, updated_food.Food_element, updated_food.Food_price, updated_food.Food_picture, updated_food.Food_text2, food_id)
         mycursor.execute(sql_update_food, val)
         mydb.commit()
 

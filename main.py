@@ -539,7 +539,6 @@ class Food(BaseModel):
     Food_element: str
     Food_price: float
     Food_picture: str
-    Food_text2: str
 
 # Add food data to the shop
 @app.post("/add_food/")
@@ -566,8 +565,8 @@ async def add_food_to_shop(food: Food, credentials: HTTPAuthorizationCredentials
         food_with_shop_id["shop_id"] = shop_id
 
         # Add food data to the database
-        sql_insert_food = "INSERT INTO food (Food_name, Food_element, Food_price, Food_picture, Food_text2, shop_id) VALUES (%s, %s, %s, %s, %s, %s)"
-        val = (food.Food_name, food.Food_element, food.Food_price, food.Food_picture, food.Food_text2, shop_id)
+        sql_insert_food = "INSERT INTO food (Food_name, Food_element, Food_price, Food_picture, shop_id) VALUES (%s, %s, %s, %s, %s)"
+        val = (food.Food_name, food.Food_element, food.Food_price, food.Food_picture, shop_id)
         mycursor.execute(sql_insert_food, val)
         mydb.commit()
 
@@ -632,7 +631,6 @@ async def show_all_food():
                 "Food_element": food[2],
                 "Food_price": food[3],
                 "Food_picture": food[4],
-                "Food_text2": food[5],
                 "food_elements": []
             }
 
@@ -679,8 +677,8 @@ async def update_food(food_id: int, updated_food: Food, credentials: HTTPAuthori
             raise HTTPException(status_code=404, detail="Food not found")
 
         # Update food data in the database
-        sql_update_food = "UPDATE food SET Food_name = %s, Food_element = %s, Food_price = %s, Food_picture = %s, Food_text2 = %s WHERE food_id = %s"
-        val = (updated_food.Food_name, updated_food.Food_element, updated_food.Food_price, updated_food.Food_picture, updated_food.Food_text2, food_id)
+        sql_update_food = "UPDATE food SET Food_name = %s, Food_element = %s, Food_price = %s, Food_picture = %s WHERE food_id = %s"
+        val = (updated_food.Food_name, updated_food.Food_element, updated_food.Food_price, updated_food.Food_picture, food_id)
         mycursor.execute(sql_update_food, val)
         mydb.commit()
 

@@ -370,6 +370,18 @@ class ShopData(BaseModel):
 # Variable to store user-added shop data
 added_shops = {}
 
+# Function to check if user already added a shop
+def user_added_shop(user_id: str) -> bool:
+    return user_id in added_shops
+
+# Function to check if shop already exists
+def shop_exists(shop_name: str, shop_location: str) -> bool:
+    sql_select = "SELECT COUNT(*) FROM shop WHERE shop_name = %s AND shop_location = %s"
+    val = (shop_name, shop_location)
+    mycursor.execute(sql_select, val)
+    count = mycursor.fetchone()[0]
+    return count > 0
+
 @app.post("/add_shop/")
 async def add_shop(shop: ShopData, credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
     try:
@@ -379,6 +391,14 @@ async def add_shop(shop: ShopData, credentials: HTTPAuthorizationCredentials = D
         # Check if the user is logged in
         if user_id not in logged_in_users:
             raise HTTPException(status_code=401, detail="User not logged in")
+
+        # Check if the user already added a shop
+        if user_added_shop(user_id):
+            raise HTTPException(status_code=400, detail="User already added a shop")
+
+        # Check if the shop already exists
+        if shop_exists(shop.shop_name, shop.shop_location):
+            raise HTTPException(status_code=400, detail="Shop already exists")
 
         # Add user id to shop data
         shop_data_with_user_id = shop.dict()
@@ -399,6 +419,9 @@ async def add_shop(shop: ShopData, credentials: HTTPAuthorizationCredentials = D
         val = (shop.shop_name, shop.shop_location, shop.shop_phone, shop.shop_time, shop.shop_picture, shop_text, user_id)
         mycursor.execute(sql_insert, val)
         mydb.commit()
+
+        # Add user_id to added_shops
+        added_shops[user_id] = True
 
         return {"message": "Shop data added successfully"}
     except Exception as e:

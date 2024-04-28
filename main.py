@@ -199,8 +199,12 @@ async def login(user_input: Login):
                 # Generate Access Token for the user
                 access_token = generate_access_token()
                 # Update login status
-                logged_in_users[user[0]] = True
-                return {"message": "Login successful", "access_token": access_token}
+                user_id = user[0]  # Extract user ID
+                logged_in_users[user_id] = True
+                username = user[1]
+                
+
+                return {"username":username ,"message": "Login successful", "user_id": user_id, "access_token": access_token}
             else:
                 raise HTTPException(status_code=401, detail="Invalid username or password")
         else:

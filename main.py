@@ -351,7 +351,6 @@ class ShopData(BaseModel):
     shop_name: str
     shop_location: str
     shop_phone: str
-    shop_map: str #เดียวปรับตรงนี้เป็นเชื่อมต่อกับ line ไว้พูดคุยกับร้านค้า
     shop_time: str 
     shop_picture: str
     shop_type: str
@@ -390,9 +389,9 @@ async def add_shop(shop: ShopData, user_id: int = Depends(get_current_user_id)):
         added_shops[user_id] = True
 
         # Insert shop data into database including user_id
-        sql_insert = "INSERT INTO shop (shop_name, shop_location, shop_phone, shop_map, shop_time, shop_picture, shop_text, user_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
+        sql_insert = "INSERT INTO shop (shop_name, shop_location, shop_phone,  shop_time, shop_picture, shop_text, user_id) VALUES (%s, %s, %s, %s, %s, %s, %s)"
         shop_text = shop.shop_type
-        val = (shop.shop_name, shop.shop_location, shop.shop_phone, shop.shop_map, shop.shop_time, shop.shop_picture, shop_text, user_id)
+        val = (shop.shop_name, shop.shop_location, shop.shop_phone, shop.shop_time, shop.shop_picture, shop_text, user_id)
         mycursor.execute(sql_insert, val)
         mydb.commit()
 
@@ -407,7 +406,6 @@ class ShopInfo(BaseModel):
     shop_name: str
     shop_location: str
     shop_phone: str
-    shop_map: str
     shop_time: str
     shop_picture: str
     shop_text: str
@@ -431,11 +429,10 @@ async def get_all_shops():
                     shop_name=shop_record[1],
                     shop_location=shop_record[2],
                     shop_phone=shop_record[3],
-                    shop_map=shop_record[4],
-                    shop_time=shop_record[5],
-                    shop_picture=shop_record[6],
-                    shop_text=shop_record[7],
-                    user_id=shop_record[8]
+                    shop_time=shop_record[4],
+                    shop_picture=shop_record[5],
+                    shop_text=shop_record[6],
+                    user_id=shop_record[7]
                 )
                 shops.append(shop)
             return shops
@@ -462,8 +459,8 @@ async def edit_shop(shop_id: int, updated_shop: ShopData, user_id: int = Depends
             raise HTTPException(status_code=403, detail="ไม่มีสิทธิ์แก้ไขข้อมูลร้านค้านี้")
 
         # Update shop data in the database
-        sql_update_shop = "UPDATE shop SET shop_name = %s, shop_location = %s, shop_phone = %s, shop_map = %s, shop_time = %s, shop_picture = %s, shop_text = %s WHERE shop_id = %s"
-        val = (updated_shop.shop_name, updated_shop.shop_location, updated_shop.shop_phone, updated_shop.shop_map, updated_shop.shop_time, updated_shop.shop_picture, updated_shop.shop_type, shop_id)
+        sql_update_shop = "UPDATE shop SET shop_name = %s, shop_location = %s, shop_phone = %s, shop_time = %s, shop_picture = %s, shop_text = %s WHERE shop_id = %s"
+        val = (updated_shop.shop_name, updated_shop.shop_location, updated_shop.shop_phone, updated_shop.shop_time, updated_shop.shop_picture, updated_shop.shop_type, shop_id)
         mycursor.execute(sql_update_shop, val)
         mydb.commit()
 

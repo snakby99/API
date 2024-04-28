@@ -20,6 +20,7 @@ import jwt
 from fastapi.responses import JSONResponse
 
 
+
 # Initialize FastAPI app
 app = FastAPI()
 translator = Translator()
@@ -212,7 +213,7 @@ async def login(user_input: Login):
                 # Update login status
                 logged_in_users[user[0]] = True
                 # Generate JWT token
-                token = create_jwt_token(user[0])
+                token = create_jwt_token(user[0], user[1], user[2], user[3], user[4], user[5], user[6])
                 # Return additional user information
                 return {"message": "Login successful", "token": token, "username": user[3], "picture": user[6]}
             else:
@@ -227,6 +228,20 @@ async def login(user_input: Login):
 bearer_scheme = HTTPBearer()
 
 
+# HTTP Bearer token for authorization
+bearer_scheme = HTTPBearer()
+
+# สร้าง JWT token
+def create_jwt_token(user_id: int, firstname: str, lastname: str, username: str, password: str, phone: str, picture: str) -> str:
+    payload = {
+        "user_id": user_id,
+        "username": username,
+        "picture": picture,
+        "exp": datetime.utcnow() + timedelta(minutes=15)  # เวลาหมดอายุ 15 นาทีจากขณะนี้
+    }
+    token = jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+    return token
+
 # API for authorization
 @app.get("/authorize/")
 async def authorize(credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
@@ -235,16 +250,13 @@ async def authorize(credentials: HTTPAuthorizationCredentials = Depends(bearer_s
         token = credentials.credentials
         # Decode JWT token
         payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-        # Convert expiration timestamp to datetime object
-        expire_time = datetime.utcfromtimestamp(payload["exp"]).replace(tzinfo=timezone.utc)
-        # Check if token is expired
-        if expire_time < datetime.utcnow().replace(tzinfo=timezone.utc):
-            raise HTTPException(status_code=401, detail="Token has expired")
-        # Check if user is logged in
-        if logged_in_users.get(payload["user_id"]):
-            return {"message": "Authorization successful", "user_id": payload["user_id"]}
-        else:
-            raise HTTPException(status_code=401, detail="User is not logged in")
+        # ตรวจสอบว่าข้อมูลมีอยู่ใน payload หรือไม่ และส่งกลับค่าที่เหมาะสม
+        return {
+            "message": "Authorization successful",
+            "user_id": payload.get("user_id"),
+            "username": payload.get("username"),
+            "picture": payload.get("picture")
+        }
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token has expired")
     except jwt.InvalidTokenError:

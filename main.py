@@ -24,8 +24,8 @@ translator = Translator()
 mydb = psycopg2.connect(
     host="localhost",
     user="postgres",
-    password="123456789",
-    database="project"
+    password="1234",
+    database="Project"
 )
 mycursor = mydb.cursor()
 

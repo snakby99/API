@@ -10,13 +10,13 @@ from datetime import datetime, timedelta
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
+from datetime import datetime, timezone
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 from pydantic import BaseModel
 from passlib.hash import bcrypt
 from typing import List
 import jwt
-from datetime import datetime, timedelta
 from fastapi.responses import JSONResponse
 
 
@@ -221,6 +221,34 @@ async def login(user_input: Login):
             raise HTTPException(status_code=401, detail="Invalid username or password")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+"---------------------------------------authorize---------------------------------------"
+
+# HTTP Bearer token for authorization
+bearer_scheme = HTTPBearer()
+
+
+# API for authorization
+@app.get("/authorize/")
+async def authorize(credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
+    try:
+        # Extract token from authorization header
+        token = credentials.credentials
+        # Decode JWT token
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        # Convert expiration timestamp to datetime object
+        expire_time = datetime.utcfromtimestamp(payload["exp"]).replace(tzinfo=timezone.utc)
+        # Check if token is expired
+        if expire_time < datetime.utcnow().replace(tzinfo=timezone.utc):
+            raise HTTPException(status_code=401, detail="Token has expired")
+        # Check if user is logged in
+        if logged_in_users.get(payload["user_id"]):
+            return {"message": "Authorization successful", "user_id": payload["user_id"]}
+        else:
+            raise HTTPException(status_code=401, detail="User is not logged in")
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token has expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
 "---------------------------------------logout---------------------------------------"
 # API for user logout
 @app.post("/logout/")

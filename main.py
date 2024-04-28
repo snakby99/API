@@ -662,4 +662,11 @@ async def delete_food(food_id: int, credentials: HTTPAuthorizationCredentials = 
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+def authenticate(api_key: Optional[str] = Header(None)):
+    if api_key != "your_secret_api_key":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return True
 
+@app.get("/protected-route")
+async def protected_route(authenticated: bool = Depends(authenticate)):
+    return {"message": "You are authenticated!"}

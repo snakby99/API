@@ -14,7 +14,7 @@ from passlib.context import CryptContext
 from pydantic import BaseModel
 from passlib.hash import bcrypt
 from typing import List
-
+import secrets
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -177,6 +177,11 @@ class Login(BaseModel):
 
 logged_in_users = {}
 
+# Function to generate random Access Token
+def generate_access_token():
+    # Generate a random token using secrets module
+    return secrets.token_urlsafe(32)
+
 # API for user login
 @app.post("/login/")
 async def login(user_input: Login):
@@ -192,7 +197,7 @@ async def login(user_input: Login):
             # Check if the stored password hash is a valid bcrypt hash
             if bcrypt.verify(user_input.password, stored_password_hash):
                 # Generate Access Token for the user
-                access_token = generate_access_token(user[0])
+                access_token = generate_access_token()
                 # Update login status
                 logged_in_users[user[0]] = True
                 return {"message": "Login successful", "access_token": access_token}
@@ -202,11 +207,6 @@ async def login(user_input: Login):
             raise HTTPException(status_code=401, detail="Invalid username or password")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
-# Function to generate Access Token
-def generate_access_token(user_id):
-    # Here you can use JWT or any other method to generate the access token
-    return f"access_token_{user_id}"
 
 # Function to validate Access Token
 def validate_access_token(access_token):
@@ -351,8 +351,8 @@ class ShopData(BaseModel):
     shop_name: str
     shop_location: str
     shop_phone: str
-    shop_map: str
-    shop_time: str
+    shop_map: str #เดียวปรับตรงนี้เป็นเชื่อมต่อกับ line ไว้พูดคุยกับร้านค้า
+    shop_time: str 
     shop_picture: str
     shop_type: str
 

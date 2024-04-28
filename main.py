@@ -370,6 +370,18 @@ class ShopData(BaseModel):
 # Variable to store user-added shop data
 added_shops = {}
 
+# Function to check if user already added a shop
+def user_added_shop(user_id: str) -> bool:
+    return user_id in added_shops
+
+# Function to check if shop already exists
+def shop_exists(shop_name: str, shop_location: str) -> bool:
+    sql_select = "SELECT COUNT(*) FROM shop WHERE shop_name = %s AND shop_location = %s"
+    val = (shop_name, shop_location)
+    mycursor.execute(sql_select, val)
+    count = mycursor.fetchone()[0]
+    return count > 0
+
 @app.post("/add_shop/")
 async def add_shop(shop: ShopData, credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
     try:
@@ -379,6 +391,14 @@ async def add_shop(shop: ShopData, credentials: HTTPAuthorizationCredentials = D
         # Check if the user is logged in
         if user_id not in logged_in_users:
             raise HTTPException(status_code=401, detail="User not logged in")
+
+        # Check if the user already added a shop
+        if user_added_shop(user_id):
+            raise HTTPException(status_code=400, detail="User already added a shop")
+
+        # Check if the shop already exists
+        if shop_exists(shop.shop_name, shop.shop_location):
+            raise HTTPException(status_code=400, detail="Shop already exists")
 
         # Add user id to shop data
         shop_data_with_user_id = shop.dict()
@@ -399,6 +419,9 @@ async def add_shop(shop: ShopData, credentials: HTTPAuthorizationCredentials = D
         val = (shop.shop_name, shop.shop_location, shop.shop_phone, shop.shop_time, shop.shop_picture, shop_text, user_id)
         mycursor.execute(sql_insert, val)
         mydb.commit()
+
+        # Add user_id to added_shops
+        added_shops[user_id] = True
 
         return {"message": "Shop data added successfully"}
     except Exception as e:
@@ -516,7 +539,6 @@ class Food(BaseModel):
     Food_element: str
     Food_price: float
     Food_picture: str
-    Food_text2: str
 
 # Add food data to the shop
 @app.post("/add_food/")
@@ -543,8 +565,8 @@ async def add_food_to_shop(food: Food, credentials: HTTPAuthorizationCredentials
         food_with_shop_id["shop_id"] = shop_id
 
         # Add food data to the database
-        sql_insert_food = "INSERT INTO food (Food_name, Food_element, Food_price, Food_picture, Food_text2, shop_id) VALUES (%s, %s, %s, %s, %s, %s)"
-        val = (food.Food_name, food.Food_element, food.Food_price, food.Food_picture, food.Food_text2, shop_id)
+        sql_insert_food = "INSERT INTO food (Food_name, Food_element, Food_price, Food_picture, shop_id) VALUES (%s, %s, %s, %s, %s)"
+        val = (food.Food_name, food.Food_element, food.Food_price, food.Food_picture, shop_id)
         mycursor.execute(sql_insert_food, val)
         mydb.commit()
 
@@ -609,7 +631,6 @@ async def show_all_food():
                 "Food_element": food[2],
                 "Food_price": food[3],
                 "Food_picture": food[4],
-                "Food_text2": food[5],
                 "food_elements": []
             }
 
@@ -656,8 +677,8 @@ async def update_food(food_id: int, updated_food: Food, credentials: HTTPAuthori
             raise HTTPException(status_code=404, detail="Food not found")
 
         # Update food data in the database
-        sql_update_food = "UPDATE food SET Food_name = %s, Food_element = %s, Food_price = %s, Food_picture = %s, Food_text2 = %s WHERE food_id = %s"
-        val = (updated_food.Food_name, updated_food.Food_element, updated_food.Food_price, updated_food.Food_picture, updated_food.Food_text2, food_id)
+        sql_update_food = "UPDATE food SET Food_name = %s, Food_element = %s, Food_price = %s, Food_picture = %s WHERE food_id = %s"
+        val = (updated_food.Food_name, updated_food.Food_element, updated_food.Food_price, updated_food.Food_picture, food_id)
         mycursor.execute(sql_update_food, val)
         mydb.commit()
 

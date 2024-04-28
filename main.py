@@ -13,11 +13,12 @@ from datetime import datetime, timedelta
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 from pydantic import BaseModel
-#from passlib.hash import bcrypt
+from passlib.hash import bcrypt
 from typing import List
 import jwt
 from datetime import datetime, timedelta
 from fastapi.responses import JSONResponse
+
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -171,6 +172,7 @@ async def register_user(user: UserRegistration):
         raise HTTPException(status_code=500, detail="Invalid hash")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+"-------------------------------------login------------------------------------"
 
 # API for user login
 class Login(BaseModel):
@@ -190,6 +192,9 @@ def create_jwt_token(user_id: int) -> str:
     token = jwt.encode(payload, SECRET_KEY, algorithm="HS256")
     return token
 
+# Create a Passlib context
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 # API for user login
 @app.post("/login/")
 async def login(user_input: Login):
@@ -203,7 +208,7 @@ async def login(user_input: Login):
             # Extract password hash from user data
             stored_password_hash = user[4]
             # Check if the stored password hash is a valid bcrypt hash
-            if bcrypt.checkpw(user_input.password.encode('utf-8'), stored_password_hash.encode('utf-8')):
+            if pwd_context.verify(user_input.password, stored_password_hash):
                 # Update login status
                 logged_in_users[user[0]] = True
                 # Generate JWT token
@@ -475,11 +480,31 @@ class Food(BaseModel):
 
 # Add food data to the shop
 @app.post("/add_food/")
-async def add_food_to_shop(food: Food):
+async def add_food_to_shop(food: Food, credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
     try:
+        # Get user id from token
+        user_id = get_user_id_from_token(credentials.credentials)
+
+        # Check if the user is logged in
+        if user_id not in logged_in_users:
+            raise HTTPException(status_code=401, detail="User not logged in")
+
+        # Check if the user is the owner of any shop
+        sql_check_shop_owner = "SELECT * FROM shop WHERE user_id = %s"
+        mycursor.execute(sql_check_shop_owner, (user_id,))
+        shop_owner = mycursor.fetchone()
+
+        if not shop_owner:
+            raise HTTPException(status_code=403, detail="User is not a shop owner")
+
+        # Add shop_id to food data
+        shop_id = shop_owner[0]  # Assuming the shop ID is in the first column
+        food_with_shop_id = food.dict()
+        food_with_shop_id["shop_id"] = shop_id
+
         # Add food data to the database
-        sql_insert_food = "INSERT INTO food (Food_name, Food_element, Food_price, Food_picture, Food_text2) VALUES (%s, %s, %s, %s, %s)"
-        val = (food.Food_name, food.Food_element, food.Food_price, food.Food_picture, food.Food_text2)
+        sql_insert_food = "INSERT INTO food (Food_name, Food_element, Food_price, Food_picture, Food_text2, shop_id) VALUES (%s, %s, %s, %s, %s, %s)"
+        val = (food.Food_name, food.Food_element, food.Food_price, food.Food_picture, food.Food_text2, shop_id)
         mycursor.execute(sql_insert_food, val)
         mydb.commit()
 
@@ -563,16 +588,31 @@ async def show_all_food():
         raise HTTPException(status_code=400, detail=str(e))
 
 "-------------------------------------edit data food------------------------------------"
-# API to edit food data
-@app.put("/edit_food/{food_id}")
-async def edit_food(food_id: int, updated_food: Food):
+# API to update food data
+@app.put("/update_food/{food_id}")
+async def update_food(food_id: int, updated_food: Food, credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
     try:
-        # Check if the food exists
-        sql_check_food = "SELECT * FROM food WHERE food_id = %s"
-        mycursor.execute(sql_check_food, (food_id,))
+        # Get user id from token
+        user_id = get_user_id_from_token(credentials.credentials)
+
+        # Check if the user is logged in
+        if user_id not in logged_in_users:
+            raise HTTPException(status_code=401, detail="User not logged in")
+
+        # Check if the user is the owner of any shop
+        sql_check_shop_owner = "SELECT * FROM shop WHERE user_id = %s"
+        mycursor.execute(sql_check_shop_owner, (user_id,))
+        shop_owner = mycursor.fetchone()
+
+        if not shop_owner:
+            raise HTTPException(status_code=403, detail="User is not a shop owner")
+
+        # Check if the food belongs to the shop owned by the user
+        sql_check_food_shop = "SELECT * FROM food WHERE food_id = %s AND shop_id = %s"
+        mycursor.execute(sql_check_food_shop, (food_id, shop_owner[0]))
         existing_food = mycursor.fetchone()
 
-        if existing_food is None:
+        if not existing_food:
             raise HTTPException(status_code=404, detail="Food not found")
 
         # Update food data in the database
@@ -581,34 +621,36 @@ async def edit_food(food_id: int, updated_food: Food):
         mycursor.execute(sql_update_food, val)
         mydb.commit()
 
-        # Delete associated food elements from foods_extraction table
-        sql_delete_food_elements = "DELETE FROM foods_extraction WHERE food_id = %s"
-        mycursor.execute(sql_delete_food_elements, (food_id,))
-        mydb.commit()
-
-        # Insert updated food elements into foods_extraction table
-        matched_words = find_matching_words(updated_food.Food_element)
-        for key, words in matched_words.items():
-            for word in words:
-                sql_insert_extraction = "INSERT INTO foods_extraction (food_id, food_name, food_element) VALUES (%s, %s, %s)"
-                val_extraction = (food_id, updated_food.Food_name, word)
-                mycursor.execute(sql_insert_extraction, val_extraction)
-                mydb.commit()
-
-        return {"message": "Food updated successfully"}
+        return {"message": "Food data updated successfully"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+"------------------------------------delete data food------------------------------------"
 
 # API to delete food data
 @app.delete("/delete_food/{food_id}")
-async def delete_food(food_id: int):
+async def delete_food(food_id: int, credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
     try:
-        # Check if the food exists
-        sql_check_food = "SELECT * FROM food WHERE food_id = %s"
-        mycursor.execute(sql_check_food, (food_id,))
+        # Get user id from token
+        user_id = get_user_id_from_token(credentials.credentials)
+
+        # Check if the user is logged in
+        if user_id not in logged_in_users:
+            raise HTTPException(status_code=401, detail="User not logged in")
+
+        # Check if the user is the owner of any shop
+        sql_check_shop_owner = "SELECT * FROM shop WHERE user_id = %s"
+        mycursor.execute(sql_check_shop_owner, (user_id,))
+        shop_owner = mycursor.fetchone()
+
+        if not shop_owner:
+            raise HTTPException(status_code=403, detail="User is not a shop owner")
+
+        # Check if the food belongs to the shop owned by the user
+        sql_check_food_shop = "SELECT * FROM food WHERE food_id = %s AND shop_id = %s"
+        mycursor.execute(sql_check_food_shop, (food_id, shop_owner[0]))
         existing_food = mycursor.fetchone()
 
-        if existing_food is None:
+        if not existing_food:
             raise HTTPException(status_code=404, detail="Food not found")
 
         # Delete food data from the database
@@ -616,14 +658,8 @@ async def delete_food(food_id: int):
         mycursor.execute(sql_delete_food, (food_id,))
         mydb.commit()
 
-        # Delete associated food elements from foods_extraction table
-        sql_delete_food_elements = "DELETE FROM foods_extraction WHERE food_id = %s"
-        mycursor.execute(sql_delete_food_elements, (food_id,))
-        mydb.commit()
-
         return {"message": "Food deleted successfully"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
 
 

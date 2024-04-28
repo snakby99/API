@@ -396,10 +396,6 @@ async def add_shop(shop: ShopData, credentials: HTTPAuthorizationCredentials = D
         if user_added_shop(user_id):
             raise HTTPException(status_code=400, detail="User already added a shop")
 
-        # Check if the shop already exists
-        if shop_exists(shop.shop_name, shop.shop_location):
-            raise HTTPException(status_code=400, detail="Shop already exists")
-
         # Add user id to shop data
         shop_data_with_user_id = shop.dict()
         shop_data_with_user_id["user_id"] = user_id
@@ -677,7 +673,7 @@ async def update_food(food_id: int, updated_food: Food, credentials: HTTPAuthori
             raise HTTPException(status_code=404, detail="Food not found")
 
         # Update food data in the database
-        sql_update_food = "UPDATE food SET Food_name = %s, Food_element = %s, Food_price = %s, Food_picture = %s WHERE food_id = %s"
+        sql_update_food = "UPDATE food SET Food_name = %s, Food_element = %s, Food_price = %s, Food_picture = %s, WHERE food_id = %s"
         val = (updated_food.Food_name, updated_food.Food_element, updated_food.Food_price, updated_food.Food_picture, food_id)
         mycursor.execute(sql_update_food, val)
         mydb.commit()

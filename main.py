@@ -424,7 +424,6 @@ async def add_shop(shop: ShopData, credentials: HTTPAuthorizationCredentials = D
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 "-------------------------------------Show data shop------------------------------------"
-# Define Pydantic model for shop data
 class ShopInfo(BaseModel):
     shop_id: int
     shop_name: str
@@ -433,13 +432,18 @@ class ShopInfo(BaseModel):
     shop_time: str
     shop_picture: str
     shop_text: str
+    food_name: str
+    food_price: str
 
-# API to retrieve all shop data
 @app.get("/shops/", response_model=List[ShopInfo])
 async def get_all_shops():
     try:
         # Execute SQL query to fetch all shop data
-        sql = "SELECT * FROM shop"
+        sql = """
+            SELECT s.*, f.Food_name, f.Food_price
+            FROM shop s
+            LEFT JOIN food f ON s.shop_id = f.shop_id
+        """
         mycursor.execute(sql)
         shop_data = mycursor.fetchall()
 
@@ -454,7 +458,9 @@ async def get_all_shops():
                     shop_phone=shop_record[3],
                     shop_time=shop_record[4],
                     shop_picture=shop_record[5],
-                    shop_text=shop_record[6]
+                    shop_text=shop_record[6],
+                    food_name=str(shop_record[8]) if shop_record[8] is not None else "",  # Index 7 corresponds to Food_name
+                    food_price=str(shop_record[9]) if shop_record[9] is not None else ""  # Index 8 corresponds to Food_price
                 )
                 shops.append(shop)
             return shops

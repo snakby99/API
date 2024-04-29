@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, Header, status
+from fastapi import FastAPI, HTTPException, Depends, APIRouter, status
 from pydantic import BaseModel, Field
 import psycopg2
 import re
@@ -299,50 +299,50 @@ async def get_user(user_id: int):
         raise HTTPException(status_code=500, detail=str(e))
     
 "---------------------------------------edit user---------------------------------------"
-# API for updating user information
-@app.put("/user/{user_id}")
-async def update_user(user_id: int, user: UserRegistration):
+# API for updating user data
+@app.put("/update_user/")
+async def update_user(user: UserRegistration, credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
     try:
-        # Check if the user exists
-        sql_check_user = "SELECT * FROM userss WHERE id = %s"
-        mycursor.execute(sql_check_user, (user_id,))
-        existing_user = mycursor.fetchone()
+        # Get user id from token
+        user_id = get_user_id_from_token(credentials.credentials)
 
-        if existing_user:
-            # Update user data in the database
-            sql_update_user = "UPDATE userss SET firstname = %s, lastname = %s, username = %s, phone = %s, picture = %s WHERE id = %s"
-            val = (user.firstname, user.lastname, user.username, user.phone, user.picture, user_id)
-            mycursor.execute(sql_update_user, val)
-            mydb.commit()
+        # Check if the user is logged in
+        if user_id not in logged_in_users:
+            raise HTTPException(status_code=401, detail="User not logged in")
 
-            return {"message": "User information updated successfully"}
-        else:
-            raise HTTPException(status_code=404, detail="User not found")
+        # Hash the password with bcrypt
+        hashed_password = bcrypt.hash(user.password)
+
+        # Update user data in the database with hashed password
+        sql = "UPDATE userss SET firstname = %s, lastname = %s, password = %s, phone = %s, picture = %s WHERE user_id = %s"
+        val = (user.firstname, user.lastname, hashed_password, user.phone, user.picture, user_id)
+        mycursor.execute(sql, val)
+        mydb.commit()
+
+        return {"message": "User data updated successfully"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
 
 "---------------------------------------delete user---------------------------------------"
-# API for deleting user
-@app.delete("/user/{user_id}")
-async def delete_user(user_id: int):
+# API for deleting user data
+@app.delete("/delete_user/")
+async def delete_user(credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
     try:
-        # Check if the user exists
-        sql_check_user = "SELECT * FROM userss WHERE id = %s"
-        mycursor.execute(sql_check_user, (user_id,))
-        existing_user = mycursor.fetchone()
+        # Get user id from token
+        user_id = get_user_id_from_token(credentials.credentials)
 
-        if existing_user:
-            # Delete user data from the database
-            sql_delete_user = "DELETE FROM userss WHERE id = %s"
-            mycursor.execute(sql_delete_user, (user_id,))
-            mydb.commit()
+        # Check if the user is logged in
+        if user_id not in logged_in_users:
+            raise HTTPException(status_code=401, detail="User not logged in")
 
-            return {"message": "User deleted successfully"}
-        else:
-            raise HTTPException(status_code=404, detail="User not found")
+        # Delete user data from the database
+        sql = "DELETE FROM userss WHERE user_id = %s"
+        mycursor.execute(sql, (user_id,))
+        mydb.commit()
+
+        return {"message": "User data deleted successfully"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
+        raise HTTPException(status_code=400, detail=str(e))
 "--------------------------------create shop-------------------------------"
 # Function to get user id from JWT token
 def get_user_id_from_token(token: str):
@@ -600,6 +600,7 @@ def find_matching_words(input_text):
         matched_words[key] = [word for word in words if re.search(word, input_text)]
 
     return matched_words
+"---------------------------------------------hide food----------------------------------------------"
 
 "---------------------------------------------get food----------------------------------------------"
 # Add method to retrieve food names from the database
@@ -760,4 +761,63 @@ async def delete_food_from_shop(food_id: int, credentials: HTTPAuthorizationCred
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+
+ 
+
+# Function to retrieve shop and food data by shop_id
+@app.get("/shop_and_food/{shop_id}")
+async def get_shop_and_food_data(shop_id: int, credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
+    try:
+        # Get user id from token
+        user_id = get_user_id_from_token(credentials.credentials)
+
+        # Check if the user is logged in
+        if user_id not in logged_in_users:
+            raise HTTPException(status_code=401, detail="User not logged in")
+
+        # Check if the shop exists and belongs to the user
+        sql_check_shop = "SELECT * FROM shop WHERE shop_id = %s AND user_id = %s"
+        mycursor.execute(sql_check_shop, (shop_id, user_id))
+        shop = mycursor.fetchone()
+        if not shop:
+            raise HTTPException(status_code=404, detail="Shop not found")
+
+        # Fetch shop data
+        shop_data = {
+            "shop_id": shop[0],
+            "shop_name": shop[1],
+            "shop_location": shop[2],
+            "shop_phone": shop[3],
+            "shop_time": shop[4],
+            "shop_picture": shop[5],
+            "shop_type": shop[6]
+        }
+
+        # Fetch food data for the shop
+        sql_select_food = "SELECT * FROM food WHERE shop_id = %s"
+        mycursor.execute(sql_select_food, (shop_id,))
+        foods = mycursor.fetchall()
+
+        food_data = []
+        for food in foods:
+            food_item = {
+                "food_id": food[0],
+                "food_name": food[1],
+                "food_element": food[2],
+                "food_price": food[3],
+                "food_picture": food[4]
+            }
+
+            # Fetch matching words from foods_extraction table
+            sql_select_extraction = "SELECT food_element FROM foods_extraction WHERE food_id = %s"
+            mycursor.execute(sql_select_extraction, (food[0],))
+            extracted_words = [word[0] for word in mycursor.fetchall()]
+            food_item["extracted_words"] = extracted_words
+
+            food_data.append(food_item)
+
+        return {"shop_data": shop_data, "food_data": food_data}
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 

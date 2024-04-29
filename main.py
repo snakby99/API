@@ -18,6 +18,7 @@ from passlib.hash import bcrypt
 from typing import List
 import jwt
 from fastapi.responses import JSONResponse
+from fastapi import Query
 
 
 
@@ -566,6 +567,27 @@ async def add_food_to_shop(food: Food, credentials: HTTPAuthorizationCredentials
         mycursor.execute(sql_insert_food, val)
         mydb.commit()
 
+        # Fetch the last inserted food id
+        mycursor.execute("SELECT lastval()")
+        last_food_id = mycursor.fetchone()[0]
+
+        # Find matching words from dataset and Food_element
+        matched_words = find_matching_words(food.Food_element)
+
+        # Insert the matched words into foods_extraction table
+        for key, words in matched_words.items():
+            for word in words:
+                # Check if the word already exists for the current food
+                sql_check_existing = "SELECT * FROM foods_extraction WHERE food_id = %s AND food_element = %s"
+                val_check_existing = (last_food_id, word)
+                mycursor.execute(sql_check_existing, val_check_existing)
+                existing_record = mycursor.fetchone()
+                if not existing_record:  # If the word doesn't exist for the current food, insert it
+                    sql = "INSERT INTO foods_extraction (food_id, food_name, food_element) VALUES (%s, %s, %s)"
+                    val = (last_food_id, food.Food_name, word)
+                    mycursor.execute(sql, val)
+                    mydb.commit()
+
         return {"message": "Food data added successfully"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -579,6 +601,7 @@ def find_matching_words(input_text):
 
     return matched_words
 
+"---------------------------------------------get food----------------------------------------------"
 # Add method to retrieve food names from the database
 def get_food_names():
     food_names = []
@@ -589,6 +612,8 @@ def get_food_names():
     for row in result:
         food_names.append(row[0])
     return food_names
+
+
 
 @app.get("/food_names/")
 async def read_food_names():
@@ -607,6 +632,22 @@ async def read_food_names():
 
     return  food_data
 
+
+# Get food data from the shop by shop_id
+@app.get("/get_food/")
+async def get_food_from_shop(shop_id: int = Query(..., description="The ID of the shop")):
+    try:
+        # Retrieve food data from the database for the specified shop_id
+        sql_get_food = "SELECT * FROM food WHERE shop_id = %s"
+        mycursor.execute(sql_get_food, (shop_id,))
+        food_data = mycursor.fetchall()
+
+        if not food_data:
+            return {"message": "No food found for the specified shop_id"}
+
+        return {"food_data": food_data}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 "-------------------------------------Show data food------------------------------------"
 
@@ -645,9 +686,9 @@ async def show_all_food():
         raise HTTPException(status_code=400, detail=str(e))
 
 "-------------------------------------edit data food------------------------------------"
-# API to update food data
+# Update food data in the shop
 @app.put("/update_food/{food_id}")
-async def update_food(food_id: int, updated_food: Food, credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
+async def update_food_in_shop(food_id: int, food: Food, credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
     try:
         # Get user id from token
         user_id = get_user_id_from_token(credentials.credentials)
@@ -664,17 +705,17 @@ async def update_food(food_id: int, updated_food: Food, credentials: HTTPAuthori
         if not shop_owner:
             raise HTTPException(status_code=403, detail="User is not a shop owner")
 
-        # Check if the food belongs to the shop owned by the user
-        sql_check_food_shop = "SELECT * FROM food WHERE food_id = %s AND shop_id = %s"
-        mycursor.execute(sql_check_food_shop, (food_id, shop_owner[0]))
+        # Check if the food belongs to the shop owner
+        sql_check_food_owner = "SELECT * FROM food WHERE food_id = %s AND shop_id = %s"
+        mycursor.execute(sql_check_food_owner, (food_id, shop_owner[0]))
         existing_food = mycursor.fetchone()
 
         if not existing_food:
-            raise HTTPException(status_code=404, detail="Food not found")
+            raise HTTPException(status_code=404, detail="Food not found or does not belong to the shop owner")
 
         # Update food data in the database
-        sql_update_food = "UPDATE food SET Food_name = %s, Food_element = %s, Food_price = %s, Food_picture = %s, WHERE food_id = %s"
-        val = (updated_food.Food_name, updated_food.Food_element, updated_food.Food_price, updated_food.Food_picture, food_id)
+        sql_update_food = "UPDATE food SET Food_name = %s, Food_element = %s, Food_price = %s, Food_picture = %s WHERE food_id = %s"
+        val = (food.Food_name, food.Food_element, food.Food_price, food.Food_picture, food_id)
         mycursor.execute(sql_update_food, val)
         mydb.commit()
 
@@ -683,9 +724,9 @@ async def update_food(food_id: int, updated_food: Food, credentials: HTTPAuthori
         raise HTTPException(status_code=400, detail=str(e))
 "------------------------------------delete data food------------------------------------"
 
-# API to delete food data
+# Delete food data from the shop
 @app.delete("/delete_food/{food_id}")
-async def delete_food(food_id: int, credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
+async def delete_food_from_shop(food_id: int, credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
     try:
         # Get user id from token
         user_id = get_user_id_from_token(credentials.credentials)
@@ -702,20 +743,20 @@ async def delete_food(food_id: int, credentials: HTTPAuthorizationCredentials = 
         if not shop_owner:
             raise HTTPException(status_code=403, detail="User is not a shop owner")
 
-        # Check if the food belongs to the shop owned by the user
-        sql_check_food_shop = "SELECT * FROM food WHERE food_id = %s AND shop_id = %s"
-        mycursor.execute(sql_check_food_shop, (food_id, shop_owner[0]))
+        # Check if the food belongs to the shop owner
+        sql_check_food_owner = "SELECT * FROM food WHERE food_id = %s AND shop_id = %s"
+        mycursor.execute(sql_check_food_owner, (food_id, shop_owner[0]))
         existing_food = mycursor.fetchone()
 
         if not existing_food:
-            raise HTTPException(status_code=404, detail="Food not found")
+            raise HTTPException(status_code=404, detail="Food not found or does not belong to the shop owner")
 
         # Delete food data from the database
         sql_delete_food = "DELETE FROM food WHERE food_id = %s"
         mycursor.execute(sql_delete_food, (food_id,))
         mydb.commit()
 
-        return {"message": "Food deleted successfully"}
+        return {"message": "Food data deleted successfully"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

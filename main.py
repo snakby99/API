@@ -434,13 +434,15 @@ class ShopInfo(BaseModel):
     shop_text: str
     food_name: str
     food_price: str
+    food_id: str
+    food_picture: str
 
 @app.get("/shops/", response_model=List[ShopInfo])
 async def get_all_shops():
     try:
         # Execute SQL query to fetch all shop data
         sql = """
-            SELECT s.*, f.Food_name, f.Food_price
+            SELECT s.*, f.Food_name, f.Food_price ,f.Food_id ,f.Food_picture
             FROM shop s
             LEFT JOIN food f ON s.shop_id = f.shop_id
         """
@@ -459,8 +461,10 @@ async def get_all_shops():
                     shop_time=shop_record[4],
                     shop_picture=shop_record[5],
                     shop_text=shop_record[6],
-                    food_name=str(shop_record[8]) if shop_record[8] is not None else "",  # Index 7 corresponds to Food_name
-                    food_price=str(shop_record[9]) if shop_record[9] is not None else ""  # Index 8 corresponds to Food_price
+                    food_name=str(shop_record[8]) if shop_record[8] is not None else "",  
+                    food_price=str(shop_record[9]) if shop_record[9] is not None else "",
+                    food_id=str(shop_record[10]) if shop_record[10] is not None else "",
+                    food_picture=str(shop_record[11]) if shop_record[11] is not None else ""  
                 )
                 shops.append(shop)
             return shops
@@ -609,36 +613,32 @@ def find_matching_words(input_text):
 "---------------------------------------------hide food----------------------------------------------"
 
 "---------------------------------------------get food----------------------------------------------"
-# Add method to retrieve food names from the database
-def get_food_names():
-    food_names = []
-    # Query to retrieve food names from the database
-    sql_get_food_names = "SELECT Food_name FROM food"
-    mycursor.execute(sql_get_food_names)
+# Add method to retrieve food names and IDs from the database
+def get_food_data():
+    food_data = []
+    # Query to retrieve food names and IDs from the database
+    sql_get_food_data = "SELECT food_id, Food_name FROM food"
+    mycursor.execute(sql_get_food_data)
     result = mycursor.fetchall()
     for row in result:
-        food_names.append(row[0])
-    return food_names
-
-
+        food_data.append({"food_id": row[0], "food_name": row[1]})
+    return food_data
 
 @app.get("/food_names/")
 async def read_food_names():
-    food_names = get_food_names()
-    food_data = []
-
-    for food_name in food_names:
-        # Query เพื่อดึงข้อมูล Food_element จากตาราง foods_extraction
-        sql_get_food_element = "SELECT food_element FROM foods_extraction WHERE food_name = %s"
-        mycursor.execute(sql_get_food_element, (food_name,))
+    food_data = get_food_data()
+    for food_entry in food_data:
+        # Query to retrieve food elements based on food_id
+        sql_get_food_element = "SELECT food_element FROM foods_extraction WHERE food_id = %s"
+        mycursor.execute(sql_get_food_element, (food_entry["food_id"],))
         food_elements = mycursor.fetchall()
         
-        # สร้าง list เพื่อเก็บ food_element ที่มี food_name เดียวกัน
+        # Combine food elements into a single string
         elements_combined = ' '.join([food_element[0] for food_element in food_elements])
-        food_data.append({"food_name": food_name, "food_element": elements_combined})
+        # Add food_element key to the food_entry dictionary
+        food_entry["food_element"] = elements_combined
 
-    return  food_data
-
+    return food_data
 
 # Get food data from the shop by shop_id
 @app.get("/get_food/")
@@ -661,8 +661,8 @@ async def get_food_from_shop(shop_id: int = Query(..., description="The ID of th
 @app.get("/show_all_food/")
 async def show_all_food():
     try:
-        # Fetch all food data
-        sql_select_food = "SELECT * FROM food"
+        # Fetch all food data with associated shop_id
+        sql_select_food = "SELECT food.*, shop.shop_id FROM food INNER JOIN shop ON food.shop_id = shop.shop_id"
         mycursor.execute(sql_select_food)
         foods = mycursor.fetchall()
 
@@ -675,6 +675,7 @@ async def show_all_food():
                 "Food_element": food[2],
                 "Food_price": food[3],
                 "Food_picture": food[4],
+                "shop_id": food[5],  # Add shop_id from food table
                 "food_elements": []
             }
 

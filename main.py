@@ -19,9 +19,7 @@ from typing import List
 import jwt
 from fastapi.responses import JSONResponse
 from fastapi import Query
-from sqlalchemy import create_engine, MetaData
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
+
 
 
 

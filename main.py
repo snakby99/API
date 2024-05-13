@@ -21,7 +21,7 @@ from fastapi.responses import JSONResponse
 from fastapi import Query
 import aiofiles
 import os
-
+import shutil
 
 
 # Initialize FastAPI app
@@ -145,7 +145,6 @@ async def translate_english_to_thai(request: TranslationRequest):
 
 
 "---------------------------------------------------------register------------------------------------------"
-
 # API for user registration
 class UserRegistration(BaseModel):
     firstname: str
@@ -155,31 +154,15 @@ class UserRegistration(BaseModel):
     phone: str
     picture: str
 
-# Assuming you have an existing folder named "image"
-UPLOAD_FOLDER = "image_user"
-
-# Function to save uploaded file
-async def save_uploaded_file(upload_folder: str, upload_file: UploadFile) -> str:
-    file_path = os.path.join(upload_folder, upload_file.filename)
-    async with aiofiles.open(file_path, 'wb') as out_file:
-        content = await upload_file.read()
-        await out_file.write(content)
-    return file_path
-
 @app.post("/register/")
-async def register_user(user: UserRegistration, profile_pic: Optional[UploadFile] = File(None)):
+async def register_user(user: UserRegistration):
     try:
         # Hash the password with bcrypt
         hashed_password = bcrypt.hash(user.password)
 
-        # If profile picture is provided, save it
-        picture_path = None
-        if profile_pic:
-            picture_path = await save_uploaded_file(UPLOAD_FOLDER, profile_pic)
-
-        # Insert user data into the database with hashed password and picture path
+        # Insert user data into the database with hashed password
         sql = "INSERT INTO userss (firstname, lastname, username, password, phone, picture) VALUES (%s, %s, %s, %s, %s, %s)"
-        val = (user.firstname, user.lastname, user.username, hashed_password, user.phone, picture_path)
+        val = (user.firstname, user.lastname, user.username, hashed_password, user.phone, user.picture)
         mycursor.execute(sql, val)
         mydb.commit()
 
@@ -362,17 +345,6 @@ async def delete_user(credentials: HTTPAuthorizationCredentials = Depends(bearer
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 "--------------------------------create shop-------------------------------"
-# Assuming you have an existing folder named "image_shops"
-UPLOAD_FOLDER = "image_shops"
-
-# Function to save uploaded file
-async def save_uploaded_file(upload_folder: str, upload_file: UploadFile) -> str:
-    file_path = os.path.join(upload_folder, upload_file.filename)
-    async with aiofiles.open(file_path, 'wb') as out_file:
-        content = await upload_file.read()
-        await out_file.write(content)
-    return file_path
-
 # Function to get user id from JWT token
 def get_user_id_from_token(token: str):
     try:
@@ -384,7 +356,7 @@ def get_user_id_from_token(token: str):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
         )
-    
+
 # HTTPBearer object for token authentication
 bearer_scheme = HTTPBearer()
 
@@ -413,7 +385,7 @@ def shop_exists(shop_name: str, shop_location: str) -> bool:
     return count > 0
 
 @app.post("/add_shop/")
-async def add_shop(shop: ShopData, credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme), shop_image: UploadFile = File(...)):
+async def add_shop(shop: ShopData, credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
     try:
         # Get user id from token
         user_id = get_user_id_from_token(credentials.credentials)
@@ -425,9 +397,6 @@ async def add_shop(shop: ShopData, credentials: HTTPAuthorizationCredentials = D
         # Check if the user already added a shop
         if user_added_shop(user_id):
             raise HTTPException(status_code=400, detail="User already added a shop")
-
-        # Save shop picture
-        shop_picture_path = await save_uploaded_file(UPLOAD_FOLDER, shop_image)
 
         # Add user id to shop data
         shop_data_with_user_id = shop.dict()
@@ -445,7 +414,7 @@ async def add_shop(shop: ShopData, credentials: HTTPAuthorizationCredentials = D
         # Add shop data to the database
         sql_insert = "INSERT INTO shop (shop_name, shop_location, shop_phone, shop_time, shop_picture, shop_text, user_id) VALUES (%s, %s, %s, %s, %s, %s, %s)"
         shop_text = shop.shop_type
-        val = (shop.shop_name, shop.shop_location, shop.shop_phone, shop.shop_time, shop_picture_path, shop_text, user_id)
+        val = (shop.shop_name, shop.shop_location, shop.shop_phone, shop.shop_time, shop.shop_picture, shop_text, user_id)
         mycursor.execute(sql_insert, val)
         mydb.commit()
 
@@ -572,32 +541,6 @@ async def delete_shop(shop_id: int, credentials: HTTPAuthorizationCredentials = 
         raise HTTPException(status_code=400, detail=str(e))
 
 "--------------------------------create food-------------------------------"
-# Assuming you have an existing folder named "image_foods"
-UPLOAD_FOLDER = "image_foods"
-
-# Function to save uploaded file
-async def save_uploaded_file(upload_folder: str, upload_file: UploadFile) -> str:
-    file_path = os.path.join(upload_folder, upload_file.filename)
-    async with aiofiles.open(file_path, 'wb') as out_file:
-        content = await upload_file.read()
-        await out_file.write(content)
-    return file_path
-
-# Function to get user id from JWT token
-def get_user_id_from_token(token: str):
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-        user_id = payload.get("user_id")
-        return user_id
-    except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-        )
-
-# HTTPBearer object for token authentication
-bearer_scheme = HTTPBearer()
-
 # Class to receive food data
 class Food(BaseModel):
     Food_name: str
@@ -607,7 +550,7 @@ class Food(BaseModel):
 
 # Add food data to the shop
 @app.post("/add_food/")
-async def add_food_to_shop(food: Food, credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme), food_picture: UploadFile = File(...)):
+async def add_food_to_shop(food: Food, credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
     try:
         # Get user id from token
         user_id = get_user_id_from_token(credentials.credentials)
@@ -629,12 +572,9 @@ async def add_food_to_shop(food: Food, credentials: HTTPAuthorizationCredentials
         food_with_shop_id = food.dict()
         food_with_shop_id["shop_id"] = shop_id
 
-        # Save food picture
-        food_picture_path = await save_uploaded_file(UPLOAD_FOLDER, food_picture)
-
         # Add food data to the database
         sql_insert_food = "INSERT INTO food (Food_name, Food_element, Food_price, Food_picture, shop_id) VALUES (%s, %s, %s, %s, %s)"
-        val = (food.Food_name, food.Food_element, food.Food_price, food_picture_path, shop_id)
+        val = (food.Food_name, food.Food_element, food.Food_price, food.Food_picture, shop_id)
         mycursor.execute(sql_insert_food, val)
         mydb.commit()
 

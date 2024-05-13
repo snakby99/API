@@ -147,7 +147,7 @@ async def translate_english_to_thai(request: TranslationRequest):
 "---------------------------------------------------------register------------------------------------------"
 # API for user registration
 
-UPLOAD_FOLDER = "image_user"
+UPLOAD_FOLDER = "./image_user"
 
 class UserRegistration(BaseModel):
     firstname: str
@@ -158,34 +158,31 @@ class UserRegistration(BaseModel):
     picture: UploadFile
 
 @app.post("/register")
-async def register_user(user: UserRegistration, file: UploadFile = File(...)):
+async def register_user(firstname: str, lastname: str, username: str, password: str, phone: str, file: UploadFile = File(...)):
     try:
         # Hash the password with bcrypt
-        hashed_password = await bcrypt.hash(user.password)
+        # hashed_password = await bcrypt.hash(password)
 
-        # สร้างเส้นทางที่เก็บไฟล์
-        file_path = os.path.join(UPLOAD_FOLDER, file.filename)
-    
-        # เขียนข้อมูลไฟล์ลงในโฟลเดอร์ที่กำหนด
+        # Get the filename
+        filename = file.filename
+
+        # Create the file path
+        file_path = os.path.join(UPLOAD_FOLDER, filename)
+
+        # Write the file to disk
         with open(file_path, "wb") as f:
             f.write(file.file.read())
 
         # Insert user data into the database with hashed password and picture path
-        sql = "INSERT INTO userss (firstname, lastname, username, password, phone, picture) VALUES (%s, %s, %s, %s, %s, %s)"
-        val = (user.firstname, user.lastname, user.username, hashed_password, user.phone, file.filename)
-        mycursor.execute(sql, val)
-        mydb.commit()
-
-        return {"message": "User registered successfully"}
-    except ImportError:
-        raise HTTPException(status_code=500, detail="bcrypt module not found")
-    except bcrypt.exceptions.InvalidSaltError:
-        raise HTTPException(status_code=500, detail="Invalid salt")
-    except bcrypt.exceptions.InvalidHashError:
-        raise HTTPException(status_code=500, detail="Invalid hash")
+        # sql = "INSERT INTO userss (firstname, lastname, username, password, phone, picture) VALUES (%s, %s, %s, %s, %s, %s)"
+        # val = (user.firstname, user.lastname, user.username, hashed_password, user.phone, file_path)
+        # mycursor.execute(sql, val)
+        # mydb.commit()
+        return f"User registered successfully. Picture path: {file_path}"
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return f"Error registering user: {str(e)}"
 "-------------------------------------login------------------------------------"
+
 
 # API for user login
 class Login(BaseModel):

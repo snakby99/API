@@ -768,6 +768,8 @@ async def delete_food_from_shop(food_id: int, credentials: HTTPAuthorizationCred
         return {"message": "Food data deleted successfully"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+    
+    #
 
 
  

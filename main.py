@@ -146,23 +146,33 @@ async def translate_english_to_thai(request: TranslationRequest):
 
 "---------------------------------------------------------register------------------------------------------"
 # API for user registration
+
+UPLOAD_FOLDER = "image_user"
+
 class UserRegistration(BaseModel):
     firstname: str
     lastname: str
     username: str
     password: str
     phone: str
-    picture: str
+    picture: UploadFile
 
-@app.post("/register/")
-async def register_user(user: UserRegistration):
+@app.post("/register")
+async def register_user(user: UserRegistration, file: UploadFile = File(...)):
     try:
         # Hash the password with bcrypt
-        hashed_password = bcrypt.hash(user.password)
+        hashed_password = await bcrypt.hash(user.password)
 
-        # Insert user data into the database with hashed password
+        # สร้างเส้นทางที่เก็บไฟล์
+        file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+    
+        # เขียนข้อมูลไฟล์ลงในโฟลเดอร์ที่กำหนด
+        with open(file_path, "wb") as f:
+            f.write(file.file.read())
+
+        # Insert user data into the database with hashed password and picture path
         sql = "INSERT INTO userss (firstname, lastname, username, password, phone, picture) VALUES (%s, %s, %s, %s, %s, %s)"
-        val = (user.firstname, user.lastname, user.username, hashed_password, user.phone, user.picture)
+        val = (user.firstname, user.lastname, user.username, hashed_password, user.phone, file.filename)
         mycursor.execute(sql, val)
         mydb.commit()
 

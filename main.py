@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, APIRouter, status
+from fastapi import FastAPI, HTTPException, Depends, APIRouter, status ,File, UploadFile
 from pydantic import BaseModel, Field
 import psycopg2
 import re
@@ -19,6 +19,8 @@ from typing import List
 import jwt
 from fastapi.responses import JSONResponse
 from fastapi import Query
+import aiofiles
+import os
 
 
 
@@ -153,15 +155,31 @@ class UserRegistration(BaseModel):
     phone: str
     picture: str
 
+# Assuming you have an existing folder named "image"
+UPLOAD_FOLDER = "image_user"
+
+# Function to save uploaded file
+async def save_uploaded_file(upload_folder: str, upload_file: UploadFile) -> str:
+    file_path = os.path.join(upload_folder, upload_file.filename)
+    async with aiofiles.open(file_path, 'wb') as out_file:
+        content = await upload_file.read()
+        await out_file.write(content)
+    return file_path
+
 @app.post("/register/")
-async def register_user(user: UserRegistration):
+async def register_user(user: UserRegistration, profile_pic: Optional[UploadFile] = File(None)):
     try:
         # Hash the password with bcrypt
         hashed_password = bcrypt.hash(user.password)
 
-        # Insert user data into the database with hashed password
+        # If profile picture is provided, save it
+        picture_path = None
+        if profile_pic:
+            picture_path = await save_uploaded_file(UPLOAD_FOLDER, profile_pic)
+
+        # Insert user data into the database with hashed password and picture path
         sql = "INSERT INTO userss (firstname, lastname, username, password, phone, picture) VALUES (%s, %s, %s, %s, %s, %s)"
-        val = (user.firstname, user.lastname, user.username, hashed_password, user.phone, user.picture)
+        val = (user.firstname, user.lastname, user.username, hashed_password, user.phone, picture_path)
         mycursor.execute(sql, val)
         mydb.commit()
 
@@ -344,6 +362,17 @@ async def delete_user(credentials: HTTPAuthorizationCredentials = Depends(bearer
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 "--------------------------------create shop-------------------------------"
+# Assuming you have an existing folder named "image_shops"
+UPLOAD_FOLDER = "image_shops"
+
+# Function to save uploaded file
+async def save_uploaded_file(upload_folder: str, upload_file: UploadFile) -> str:
+    file_path = os.path.join(upload_folder, upload_file.filename)
+    async with aiofiles.open(file_path, 'wb') as out_file:
+        content = await upload_file.read()
+        await out_file.write(content)
+    return file_path
+
 # Function to get user id from JWT token
 def get_user_id_from_token(token: str):
     try:
@@ -355,7 +384,7 @@ def get_user_id_from_token(token: str):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
         )
-
+    
 # HTTPBearer object for token authentication
 bearer_scheme = HTTPBearer()
 
@@ -384,7 +413,7 @@ def shop_exists(shop_name: str, shop_location: str) -> bool:
     return count > 0
 
 @app.post("/add_shop/")
-async def add_shop(shop: ShopData, credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
+async def add_shop(shop: ShopData, credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme), shop_image: UploadFile = File(...)):
     try:
         # Get user id from token
         user_id = get_user_id_from_token(credentials.credentials)
@@ -396,6 +425,9 @@ async def add_shop(shop: ShopData, credentials: HTTPAuthorizationCredentials = D
         # Check if the user already added a shop
         if user_added_shop(user_id):
             raise HTTPException(status_code=400, detail="User already added a shop")
+
+        # Save shop picture
+        shop_picture_path = await save_uploaded_file(UPLOAD_FOLDER, shop_image)
 
         # Add user id to shop data
         shop_data_with_user_id = shop.dict()
@@ -413,7 +445,7 @@ async def add_shop(shop: ShopData, credentials: HTTPAuthorizationCredentials = D
         # Add shop data to the database
         sql_insert = "INSERT INTO shop (shop_name, shop_location, shop_phone, shop_time, shop_picture, shop_text, user_id) VALUES (%s, %s, %s, %s, %s, %s, %s)"
         shop_text = shop.shop_type
-        val = (shop.shop_name, shop.shop_location, shop.shop_phone, shop.shop_time, shop.shop_picture, shop_text, user_id)
+        val = (shop.shop_name, shop.shop_location, shop.shop_phone, shop.shop_time, shop_picture_path, shop_text, user_id)
         mycursor.execute(sql_insert, val)
         mydb.commit()
 
@@ -434,13 +466,15 @@ class ShopInfo(BaseModel):
     shop_text: str
     food_name: str
     food_price: str
+    food_id: str
+    food_picture: str
 
 @app.get("/shops/", response_model=List[ShopInfo])
 async def get_all_shops():
     try:
         # Execute SQL query to fetch all shop data
         sql = """
-            SELECT s.*, f.Food_name, f.Food_price
+            SELECT s.*, f.Food_name, f.Food_price ,f.Food_id ,f.Food_picture
             FROM shop s
             LEFT JOIN food f ON s.shop_id = f.shop_id
         """
@@ -459,8 +493,10 @@ async def get_all_shops():
                     shop_time=shop_record[4],
                     shop_picture=shop_record[5],
                     shop_text=shop_record[6],
-                    food_name=str(shop_record[8]) if shop_record[8] is not None else "",  # Index 7 corresponds to Food_name
-                    food_price=str(shop_record[9]) if shop_record[9] is not None else ""  # Index 8 corresponds to Food_price
+                    food_name=str(shop_record[8]) if shop_record[8] is not None else "",  
+                    food_price=str(shop_record[9]) if shop_record[9] is not None else "",
+                    food_id=str(shop_record[10]) if shop_record[10] is not None else "",
+                    food_picture=str(shop_record[11]) if shop_record[11] is not None else ""  
                 )
                 shops.append(shop)
             return shops
@@ -536,6 +572,32 @@ async def delete_shop(shop_id: int, credentials: HTTPAuthorizationCredentials = 
         raise HTTPException(status_code=400, detail=str(e))
 
 "--------------------------------create food-------------------------------"
+# Assuming you have an existing folder named "image_foods"
+UPLOAD_FOLDER = "image_foods"
+
+# Function to save uploaded file
+async def save_uploaded_file(upload_folder: str, upload_file: UploadFile) -> str:
+    file_path = os.path.join(upload_folder, upload_file.filename)
+    async with aiofiles.open(file_path, 'wb') as out_file:
+        content = await upload_file.read()
+        await out_file.write(content)
+    return file_path
+
+# Function to get user id from JWT token
+def get_user_id_from_token(token: str):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        user_id = payload.get("user_id")
+        return user_id
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+        )
+
+# HTTPBearer object for token authentication
+bearer_scheme = HTTPBearer()
+
 # Class to receive food data
 class Food(BaseModel):
     Food_name: str
@@ -545,7 +607,7 @@ class Food(BaseModel):
 
 # Add food data to the shop
 @app.post("/add_food/")
-async def add_food_to_shop(food: Food, credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
+async def add_food_to_shop(food: Food, credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme), food_picture: UploadFile = File(...)):
     try:
         # Get user id from token
         user_id = get_user_id_from_token(credentials.credentials)
@@ -567,9 +629,12 @@ async def add_food_to_shop(food: Food, credentials: HTTPAuthorizationCredentials
         food_with_shop_id = food.dict()
         food_with_shop_id["shop_id"] = shop_id
 
+        # Save food picture
+        food_picture_path = await save_uploaded_file(UPLOAD_FOLDER, food_picture)
+
         # Add food data to the database
         sql_insert_food = "INSERT INTO food (Food_name, Food_element, Food_price, Food_picture, shop_id) VALUES (%s, %s, %s, %s, %s)"
-        val = (food.Food_name, food.Food_element, food.Food_price, food.Food_picture, shop_id)
+        val = (food.Food_name, food.Food_element, food.Food_price, food_picture_path, shop_id)
         mycursor.execute(sql_insert_food, val)
         mydb.commit()
 
@@ -609,36 +674,32 @@ def find_matching_words(input_text):
 "---------------------------------------------hide food----------------------------------------------"
 
 "---------------------------------------------get food----------------------------------------------"
-# Add method to retrieve food names from the database
-def get_food_names():
-    food_names = []
-    # Query to retrieve food names from the database
-    sql_get_food_names = "SELECT Food_name FROM food"
-    mycursor.execute(sql_get_food_names)
+# Add method to retrieve food names and IDs from the database
+def get_food_data():
+    food_data = []
+    # Query to retrieve food names and IDs from the database
+    sql_get_food_data = "SELECT food_id, Food_name FROM food"
+    mycursor.execute(sql_get_food_data)
     result = mycursor.fetchall()
     for row in result:
-        food_names.append(row[0])
-    return food_names
-
-
+        food_data.append({"food_id": row[0], "food_name": row[1]})
+    return food_data
 
 @app.get("/food_names/")
 async def read_food_names():
-    food_names = get_food_names()
-    food_data = []
-
-    for food_name in food_names:
-        # Query เพื่อดึงข้อมูล Food_element จากตาราง foods_extraction
-        sql_get_food_element = "SELECT food_element FROM foods_extraction WHERE food_name = %s"
-        mycursor.execute(sql_get_food_element, (food_name,))
+    food_data = get_food_data()
+    for food_entry in food_data:
+        # Query to retrieve food elements based on food_id
+        sql_get_food_element = "SELECT food_element FROM foods_extraction WHERE food_id = %s"
+        mycursor.execute(sql_get_food_element, (food_entry["food_id"],))
         food_elements = mycursor.fetchall()
         
-        # สร้าง list เพื่อเก็บ food_element ที่มี food_name เดียวกัน
+        # Combine food elements into a single string
         elements_combined = ' '.join([food_element[0] for food_element in food_elements])
-        food_data.append({"food_name": food_name, "food_element": elements_combined})
+        # Add food_element key to the food_entry dictionary
+        food_entry["food_element"] = elements_combined
 
-    return  food_data
-
+    return food_data
 
 # Get food data from the shop by shop_id
 @app.get("/get_food/")
@@ -661,8 +722,8 @@ async def get_food_from_shop(shop_id: int = Query(..., description="The ID of th
 @app.get("/show_all_food/")
 async def show_all_food():
     try:
-        # Fetch all food data
-        sql_select_food = "SELECT * FROM food"
+        # Fetch all food data with associated shop_id
+        sql_select_food = "SELECT food.*, shop.shop_id FROM food INNER JOIN shop ON food.shop_id = shop.shop_id"
         mycursor.execute(sql_select_food)
         foods = mycursor.fetchall()
 
@@ -675,6 +736,7 @@ async def show_all_food():
                 "Food_element": food[2],
                 "Food_price": food[3],
                 "Food_picture": food[4],
+                "shop_id": food[5],  # Add shop_id from food table
                 "food_elements": []
             }
 
@@ -770,60 +832,4 @@ async def delete_food_from_shop(food_id: int, credentials: HTTPAuthorizationCred
 
  
 
-# Function to retrieve shop and food data by shop_id
-@app.get("/shop_and_food/{shop_id}")
-async def get_shop_and_food_data(shop_id: int, credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
-    try:
-        # Get user id from token
-        user_id = get_user_id_from_token(credentials.credentials)
-
-        # Check if the user is logged in
-        if user_id not in logged_in_users:
-            raise HTTPException(status_code=401, detail="User not logged in")
-
-        # Check if the shop exists and belongs to the user
-        sql_check_shop = "SELECT * FROM shop WHERE shop_id = %s AND user_id = %s"
-        mycursor.execute(sql_check_shop, (shop_id, user_id))
-        shop = mycursor.fetchone()
-        if not shop:
-            raise HTTPException(status_code=404, detail="Shop not found")
-
-        # Fetch shop data
-        shop_data = {
-            "shop_id": shop[0],
-            "shop_name": shop[1],
-            "shop_location": shop[2],
-            "shop_phone": shop[3],
-            "shop_time": shop[4],
-            "shop_picture": shop[5],
-            "shop_type": shop[6]
-        }
-
-        # Fetch food data for the shop
-        sql_select_food = "SELECT * FROM food WHERE shop_id = %s"
-        mycursor.execute(sql_select_food, (shop_id,))
-        foods = mycursor.fetchall()
-
-        food_data = []
-        for food in foods:
-            food_item = {
-                "food_id": food[0],
-                "food_name": food[1],
-                "food_element": food[2],
-                "food_price": food[3],
-                "food_picture": food[4]
-            }
-
-            # Fetch matching words from foods_extraction table
-            sql_select_extraction = "SELECT food_element FROM foods_extraction WHERE food_id = %s"
-            mycursor.execute(sql_select_extraction, (food[0],))
-            extracted_words = [word[0] for word in mycursor.fetchall()]
-            food_item["extracted_words"] = extracted_words
-
-            food_data.append(food_item)
-
-        return {"shop_data": shop_data, "food_data": food_data}
-
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
 

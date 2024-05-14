@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, APIRouter, status ,File, UploadFile,Form
+from fastapi import FastAPI, HTTPException, Depends, APIRouter, status ,File, UploadFile
 from pydantic import BaseModel, Field
 import psycopg2
 import re
@@ -23,7 +23,10 @@ import aiofiles
 import os
 import shutil
 
-
+from sqlalchemy import create_engine, Column, String
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from passlib.context import CryptContext
 # Initialize FastAPI app
 app = FastAPI()
 translator = Translator()
@@ -146,47 +149,60 @@ async def translate_english_to_thai(request: TranslationRequest):
 
 "---------------------------------------------------------register------------------------------------------"
 # API for user registration
+
 UPLOAD_FOLDER = "./image_user"
-class UserRegistration(BaseModel):
-    firstname: str
-    lastname: str
-    username: str
-    password: str
-    phone: str
 
+Base = declarative_base()
+
+class UserRegistration(Base):
+    __tablename__ = "users"
+    id = Column(String, primary_key=True, index=True)
+    firstname = Column(String)
+    lastname = Column(String)
+    username = Column(String, unique=True)
+    password = Column(String)
+    phone = Column(String)
+    picture = Column(String)
+
+# เชื่อมต่อฐานข้อมูล PostgreSQL
+engine = create_engine(DATABASE_URL)
+Base.metadata.create_all(bind=engine)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# เซตอัลกอริธึมสำหรับการแฮชพาสเวิร์ด
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# สร้างเส้นทาง API สำหรับการลงทะเบียนผู้ใช้และอัพโหลดไฟล์
 @app.post("/register/")
-async def register_user(
-    firstname: str = Form(...),
-    lastname: str = Form(...),
-    username: str = Form(...),
-    password: str = Form(...),
-    phone: str = Form(...),
-    file: UploadFile = File(...)
-):
+async def register_user(user: UserRegistration, file: UploadFile = File(...)):
     try:
-        # แฮชพาสเวิร์ดด้วย bcrypt
-        hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+        # Hash the password with bcrypt
+        hashed_password = pwd_context.hash(user.password)
 
-        # รับชื่อไฟล์
+        # Get the filename
         filename = file.filename
 
-        # สร้างเส้นทางไฟล์
+        # Create the file path
         file_path = os.path.join(UPLOAD_FOLDER, filename)
 
-        # เขียนไฟล์ลงในดิสก์
+        # Write the file to disk
         with open(file_path, "wb") as f:
             f.write(file.file.read())
 
-        # ใส่ข้อมูลผู้ใช้ลงในฐานข้อมูลพร้อมพาสเวิร์ดที่ถูกแฮชและเส้นทางรูปภาพ
-        sql = "INSERT INTO userss (firstname, lastname, username, password, phone, picture) VALUES (%s, %s, %s, %s, %s, %s)"
-        val = (firstname, lastname, username, hashed_password, phone, file_path)
-        mycursor.execute(sql, val)
-        mydb.commit()
-        return {"message": "ลงทะเบียนผู้ใช้สำเร็จ", "picture_path": file_path}
-    except bcrypt.exceptions.InvalidSaltError:
-        raise HTTPException(status_code=500, detail="Invalid salt")
-    except bcrypt.exceptions.InvalidHashError:
-        raise HTTPException(status_code=500, detail="Invalid hash")
+        # Insert user data into the database with hashed password and picture path
+        db = SessionLocal()
+        new_user = User(
+            firstname=user.firstname,
+            lastname=user.lastname,
+            username=user.username,
+            password=hashed_password,
+            phone=user.phone,
+            picture=file_path
+        )
+        db.add(new_user)
+        db.commit()
+        db.close()
+        return {"message": "User registered successfully", "picture_path": file_path}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 "-------------------------------------login------------------------------------"

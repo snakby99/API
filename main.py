@@ -147,40 +147,36 @@ async def translate_english_to_thai(request: TranslationRequest):
 "---------------------------------------------------------register------------------------------------------"
 # API for user registration
 
-UPLOAD_FOLDER = "./image_user"
-
+# API for user registration
 class UserRegistration(BaseModel):
     firstname: str
     lastname: str
     username: str
     password: str
     phone: str
-    picture: UploadFile
+    picture: str
 
-@app.post("/register")
-async def register_user(firstname: str, lastname: str, username: str, password: str, phone: str, file: UploadFile = File(...)):
+@app.post("/register/")
+async def register_user(user: UserRegistration):
     try:
         # Hash the password with bcrypt
-        # hashed_password = await bcrypt.hash(password)
+        hashed_password = bcrypt.hash(user.password)
 
-        # Get the filename
-        filename = file.filename
+        # Insert user data into the database with hashed password
+        sql = "INSERT INTO userss (firstname, lastname, username, password, phone, picture) VALUES (%s, %s, %s, %s, %s, %s)"
+        val = (user.firstname, user.lastname, user.username, hashed_password, user.phone, user.picture)
+        mycursor.execute(sql, val)
+        mydb.commit()
 
-        # Create the file path
-        file_path = os.path.join(UPLOAD_FOLDER, filename)
-
-        # Write the file to disk
-        with open(file_path, "wb") as f:
-            f.write(file.file.read())
-
-        # Insert user data into the database with hashed password and picture path
-        # sql = "INSERT INTO userss (firstname, lastname, username, password, phone, picture) VALUES (%s, %s, %s, %s, %s, %s)"
-        # val = (user.firstname, user.lastname, user.username, hashed_password, user.phone, file_path)
-        # mycursor.execute(sql, val)
-        # mydb.commit()
-        return f"User registered successfully. Picture path: {file_path}"
+        return {"message": "User registered successfully"}
+    except ImportError:
+        raise HTTPException(status_code=500, detail="bcrypt module not found")
+    except bcrypt.exceptions.InvalidSaltError:
+        raise HTTPException(status_code=500, detail="Invalid salt")
+    except bcrypt.exceptions.InvalidHashError:
+        raise HTTPException(status_code=500, detail="Invalid hash")
     except Exception as e:
-        return f"Error registering user: {str(e)}"
+        raise HTTPException(status_code=400, detail=str(e))
 "-------------------------------------login------------------------------------"
 
 
@@ -286,7 +282,7 @@ async def logout():
 async def get_user(user_id: int):
     try:
         # Execute SQL query to fetch user data by user_id
-        sql = "SELECT * FROM userss WHERE id = %s"
+        sql = "SELECT * FROM users WHERE id = %s"
         mycursor.execute(sql, (user_id,))
         user = mycursor.fetchone()
 

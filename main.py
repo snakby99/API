@@ -146,8 +146,6 @@ async def translate_english_to_thai(request: TranslationRequest):
 
 "---------------------------------------------------------register------------------------------------------"
 # API for user registration
-
-# API for user registration
 class UserRegistration(BaseModel):
     firstname: str
     lastname: str
@@ -178,7 +176,6 @@ async def register_user(user: UserRegistration):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 "-------------------------------------login------------------------------------"
-
 
 # API for user login
 class Login(BaseModel):
@@ -282,7 +279,7 @@ async def logout():
 async def get_user(user_id: int):
     try:
         # Execute SQL query to fetch user data by user_id
-        sql = "SELECT * FROM users WHERE id = %s"
+        sql = "SELECT * FROM userss WHERE id = %s"
         mycursor.execute(sql, (user_id,))
         user = mycursor.fetchone()
 

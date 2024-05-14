@@ -174,7 +174,7 @@ async def register_user(firstname: str, lastname: str, username: str, password: 
             f.write(file.file.read())
 
         # Insert user data into the database with hashed password and picture path
-        sql = "INSERT INTO users (firstname, lastname, username, password, phone, picture) VALUES (%s, %s, %s, %s, %s, %s)"
+        sql = "INSERT INTO userss (firstname, lastname, username, password, phone, picture) VALUES (%s, %s, %s, %s, %s, %s)"
         val = (firstname, lastname, username, hashed_password, phone, file_path)
         mycursor.execute(sql, val)
         mydb.commit()
@@ -214,7 +214,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 async def login(user_input: Login):
     try:
         # Execute SQL query to fetch user data by username
-        sql = "SELECT * FROM users WHERE username = %s"
+        sql = "SELECT * FROM userss WHERE username = %s"
         mycursor.execute(sql, (user_input.username,))
         user = mycursor.fetchone()
 

@@ -22,7 +22,7 @@ from fastapi import Query
 import aiofiles
 import os
 import shutil
-
+import pymysql
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -36,6 +36,14 @@ mydb = psycopg2.connect(
     database="Project"
 )
 mycursor = mydb.cursor()
+
+# mydb = pymysql.connect(
+#     host="localhost",
+#     user="root",
+#     password="",
+#     database="Project"
+# )
+# mycursor = mydb.cursor()
 
 # Define Pydantic BaseModel for Food
 class Food(BaseModel):
@@ -105,48 +113,8 @@ dataset = {
                 ],
 }
 
-"---------------------------------------------search------------------------------------------"
-
-# API เพื่อค้นหาอาหารจากชื่อ
-@app.get("/search_shop/")
-async def search_shop(shop_name: str):
-    try:
-        if not shop_name.strip():  # Check if food_name is empty or whitespace
-            raise HTTPException(status_code=400, detail="Shop name cannot be empty")
-            
-        # สร้างคำสั่ง SQL เพื่อค้นหาข้อมูลอาหารจากชื่อในฐานข้อมูล
-        sql = "SELECT * FROM shop WHERE shop_name ILIKE %s"
-        mycursor.execute(sql, ('%' + shop_name + '%',))
-        result = mycursor.fetchall()
-        # หากไม่พบข้อมูล
-        if not result:
-            raise HTTPException(status_code=404, detail="Shop not found")
-        # แปลงผลลัพธ์เป็นรูปแบบ JSON และส่งกลับ
-        return {"food_result": result}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    
-"----------------------------------------------translate------------------------------------------"
-class TranslationRequest(BaseModel):
-    text: str
-
-class TranslationResponse(BaseModel):
-    translated_text: str
-
-@app.post("/translate/th-en/")
-async def translate_thai_to_english(request: TranslationRequest):
-    translated = translator.translate(request.text, src='th', dest='en')
-    return {"translated_text": translated.text}
-
-@app.post("/translate/en-th/")
-async def translate_english_to_thai(request: TranslationRequest):
-    translated = translator.translate(request.text, src='en', dest='th')
-    return {"translated_text": translated.text}
-
-
 "---------------------------------------------------------register------------------------------------------"
 # API for user registration
-
 UPLOAD_FOLDER = "./image_user"
 
 class UserRegistration(BaseModel):
@@ -188,8 +156,51 @@ async def register_user(firstname: str = Form(...), lastname: str = Form(...),
         raise HTTPException(status_code=500, detail="Invalid hash")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-"-------------------------------------login------------------------------------"
 
+
+
+"---------------------------------------------search------------------------------------------"
+
+# API เพื่อค้นหาอาหารจากชื่อ
+@app.get("/search_shop/")
+async def search_shop(shop_name: str):
+    try:
+        if not shop_name.strip():  # Check if food_name is empty or whitespace
+            raise HTTPException(status_code=400, detail="Shop name cannot be empty")
+            
+        # สร้างคำสั่ง SQL เพื่อค้นหาข้อมูลอาหารจากชื่อในฐานข้อมูล
+        sql = "SELECT * FROM shop WHERE shop_name ILIKE %s"
+        mycursor.execute(sql, ('%' + shop_name + '%',))
+        result = mycursor.fetchall()
+        # หากไม่พบข้อมูล
+        if not result:
+            raise HTTPException(status_code=404, detail="Shop not found")
+        # แปลงผลลัพธ์เป็นรูปแบบ JSON และส่งกลับ
+        return {"food_result": result}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
+"----------------------------------------------translate------------------------------------------"
+class TranslationRequest(BaseModel):
+    text: str
+
+class TranslationResponse(BaseModel):
+    translated_text: str
+
+@app.post("/translate/th-en/")
+async def translate_thai_to_english(request: TranslationRequest):
+    translated = translator.translate(request.text, src='th', dest='en')
+    return {"translated_text": translated.text}
+
+@app.post("/translate/en-th/")
+async def translate_english_to_thai(request: TranslationRequest):
+    translated = translator.translate(request.text, src='en', dest='th')
+    return {"translated_text": translated.text}
+
+
+
+
+"-------------------------------------login------------------------------------"
 
 # API for user login
 class Login(BaseModel):
@@ -217,7 +228,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 async def login(user_input: Login):
     try:
         # Execute SQL query to fetch user data by username
-        sql = "SELECT * FROM userss WHERE username = %s"
+        sql = "SELECT * FROM users WHERE username = %s"
         mycursor.execute(sql, (user_input.username,))
         user = mycursor.fetchone()
 
@@ -293,7 +304,7 @@ async def logout():
 async def get_user(user_id: int):
     try:
         # Execute SQL query to fetch user data by user_id
-        sql = "SELECT * FROM users WHERE id = %s"
+        sql = "SELECT * FROM userss WHERE id = %s"
         mycursor.execute(sql, (user_id,))
         user = mycursor.fetchone()
 

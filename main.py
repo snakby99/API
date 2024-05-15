@@ -22,18 +22,26 @@ from fastapi import Query
 import aiofiles
 import os
 import shutil
-
+import pymysql
 
 # Initialize FastAPI app
 app = FastAPI()
 translator = Translator()
 
 # Connect to PostgreSQL database
-mydb = psycopg2.connect(
+# mydb = psycopg2.connect(
+#     host="localhost",
+#     user="postgres",
+#     password="123456789",
+#     database="project"
+# )
+# mycursor = mydb.cursor()
+
+mydb = pymysql.connect(
     host="localhost",
-    user="postgres",
-    password="123456789",
-    database="project"
+    user="root",
+    password="",
+    database="Project"
 )
 mycursor = mydb.cursor()
 

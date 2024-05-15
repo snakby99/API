@@ -22,17 +22,25 @@ from fastapi import Query
 import aiofiles
 import os
 import shutil
-
+import pymysql
 
 # Initialize FastAPI app
 app = FastAPI()
 translator = Translator()
 
 # Connect to PostgreSQL database
-mydb = psycopg2.connect(
+# mydb = psycopg2.connect(
+#     host="localhost",
+#     user="postgres",
+#     password="123456789",
+#     database="project"
+# )
+# mycursor = mydb.cursor()
+
+mydb = pymysql.connect(
     host="localhost",
-    user="postgres",
-    password="1234",
+    user="root",
+    password="",
     database="Project"
 )
 mycursor = mydb.cursor()
@@ -161,7 +169,7 @@ async def register_user(user: UserRegistration):
         hashed_password = bcrypt.hash(user.password)
 
         # Insert user data into the database with hashed password
-        sql = "INSERT INTO users (firstname, lastname, username, password, phone, picture) VALUES (%s, %s, %s, %s, %s, %s)"
+        sql = "INSERT INTO userss (firstname, lastname, username, password, phone, picture) VALUES (%s, %s, %s, %s, %s, %s)"
         val = (user.firstname, user.lastname, user.username, hashed_password, user.phone, user.picture)
         mycursor.execute(sql, val)
         mydb.commit()
@@ -203,7 +211,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 async def login(user_input: Login):
     try:
         # Execute SQL query to fetch user data by username
-        sql = "SELECT * FROM users WHERE username = %s"
+        sql = "SELECT * FROM userss WHERE username = %s"
         mycursor.execute(sql, (user_input.username,))
         user = mycursor.fetchone()
 

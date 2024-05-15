@@ -1,8 +1,7 @@
-from fastapi import FastAPI, HTTPException, Depends, APIRouter, status ,File, UploadFile,Body
+from fastapi import FastAPI, HTTPException, Depends, APIRouter, status ,File, UploadFile,Form
 from pydantic import BaseModel, Field
 import psycopg2
 import re
-import bcrypt
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 from googletrans import Translator
@@ -14,6 +13,7 @@ from datetime import datetime, timezone
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 from pydantic import BaseModel
+import bcrypt
 from passlib.hash import bcrypt
 from typing import List
 import jwt
@@ -155,13 +155,20 @@ class UserRegistration(BaseModel):
     username: str
     password: str
     phone: str
-    picture: str
+    picture: UploadFile
 
 @app.post("/register/")
-async def register_user(user_data: UserRegistration = Body(..., embed=True), file: UploadFile = File(...)):
+async def register_user(
+    firstname: str = Form(...),
+    lastname: str = Form(...),
+    username: str = Form(...),
+    password: str = Form(...),
+    phone: str = Form(...),
+    file: UploadFile = File(...)
+):
     try:
         # Hash the password with bcrypt
-        hashed_password = bcrypt.hash(user_data.password)
+        hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
 
         # Get the filename
         filename = file.filename
@@ -171,20 +178,21 @@ async def register_user(user_data: UserRegistration = Body(..., embed=True), fil
 
         # Write the file to disk
         with open(file_path, "wb") as f:
-            f.write(file.file.read())
+            f.write(await file.read())
 
         # Insert user data into the database with hashed password and picture path
         sql = "INSERT INTO users (firstname, lastname, username, password, phone, picture) VALUES (%s, %s, %s, %s, %s, %s)"
-        val = (user_data.firstname, user_data.lastname, user_data.username, hashed_password, user_data.phone, file_path)
+        val = (firstname, lastname, username, hashed_password.decode('utf-8'), phone, file_path)
         mycursor.execute(sql, val)
         mydb.commit()
-        return f"ลงทะเบียนผู้ใช้สำเร็จแล้ว. ที่อยู่รูปภาพ: {file_path}"
+
+        return {"message": f"User registered successfully. Picture path: {file_path}"}
     except bcrypt.exceptions.InvalidSaltError:
-        raise HTTPException(status_code=500, detail="เกิดข้อผิดพลาดในการสร้างเกล็ดไม่ถูกต้อง")
+        raise HTTPException(status_code=500, detail="Invalid salt")
     except bcrypt.exceptions.InvalidHashError:
-        raise HTTPException(status_code=500, detail="เกิดข้อผิดพลาดในการสร้างเกล็ดไม่ถูกต้อง")
+        raise HTTPException(status_code=500, detail="Invalid hash")
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
 "-------------------------------------login------------------------------------"
 
 
@@ -214,7 +222,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 async def login(user_input: Login):
     try:
         # Execute SQL query to fetch user data by username
-        sql = "SELECT * FROM users WHERE username = %s"
+        sql = "SELECT * FROM userss WHERE username = %s"
         mycursor.execute(sql, (user_input.username,))
         user = mycursor.fetchone()
 

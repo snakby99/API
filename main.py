@@ -22,7 +22,7 @@ from fastapi import Query
 import aiofiles
 import os
 import shutil
-import pymysql
+
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -36,14 +36,6 @@ mydb = psycopg2.connect(
     database="Project"
 )
 mycursor = mydb.cursor()
-
-# mydb = pymysql.connect(
-#     host="localhost",
-#     user="root",
-#     password="",
-#     database="Project"
-# )
-# mycursor = mydb.cursor()
 
 # Define Pydantic BaseModel for Food
 class Food(BaseModel):
@@ -113,52 +105,6 @@ dataset = {
                 ],
 }
 
-"---------------------------------------------------------register------------------------------------------"
-# API for user registration
-UPLOAD_FOLDER = "./image_user"
-
-class UserRegistration(BaseModel):
-    firstname: str
-    lastname: str
-    username: str
-    password: str
-    phone: str
-
-app = FastAPI()
-
-@app.post("/register/")
-async def register_user(firstname: str = Form(...), lastname: str = Form(...), 
-                        username: str = Form(...), password: str = Form(...), 
-                        phone: str = Form(...), picture: UploadFile = File(...)):
-    try:
-        # Hash the password with bcrypt
-        hashed_password = bcrypt.hash(password)
-
-        # Get the filename
-        filename = picture.filename
-
-        # Create the file path
-        file_path = os.path.join(UPLOAD_FOLDER, filename)
-
-        # Write the file to disk
-        with open(file_path, "wb") as f:
-            f.write(await picture.read())
-
-        # Insert user data into the database with hashed password and picture path
-        sql = "INSERT INTO users (firstname, lastname, username, password, phone, picture) VALUES (%s, %s, %s, %s, %s, %s)"
-        val = (firstname, lastname, username, hashed_password, phone, file_path)
-        mycursor.execute(sql, val)
-        mydb.commit()
-        return f"User registered successfully. Picture path: {file_path}"
-    except bcrypt.exceptions.InvalidSaltError:
-        raise HTTPException(status_code=500, detail="Invalid salt")
-    except bcrypt.exceptions.InvalidHashError:
-        raise HTTPException(status_code=500, detail="Invalid hash")
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-
 "---------------------------------------------search------------------------------------------"
 
 # API เพื่อค้นหาอาหารจากชื่อ
@@ -198,9 +144,52 @@ async def translate_english_to_thai(request: TranslationRequest):
     return {"translated_text": translated.text}
 
 
+"---------------------------------------------------------register------------------------------------------"
+# API for user registration
+
+UPLOAD_FOLDER = "./image_user"
+
+class UserRegistration(BaseModel):
+    firstname: str
+    lastname: str
+    username: str
+    password: str
+    phone: str
 
 
+
+@app.post("/register/")
+async def register_user(firstname: str = Form(...), lastname: str = Form(...), 
+                        username: str = Form(...), password: str = Form(...), 
+                        phone: str = Form(...), picture: UploadFile = File(...)):
+    try:
+        # Hash the password with bcrypt
+        hashed_password = bcrypt.hash(password)
+
+        # Get the filename
+        filename = picture.filename
+
+        # Create the file path
+        file_path = os.path.join(UPLOAD_FOLDER, filename)
+
+        # Write the file to disk
+        with open(file_path, "wb") as f:
+            f.write(await picture.read())
+
+        # Insert user data into the database with hashed password and picture path
+        sql = "INSERT INTO users (firstname, lastname, username, password, phone, picture) VALUES (%s, %s, %s, %s, %s, %s)"
+        val = (firstname, lastname, username, hashed_password, phone, file_path)
+        mycursor.execute(sql, val)
+        mydb.commit()
+        return f"User registered successfully. Picture path: {file_path}"
+    except bcrypt.exceptions.InvalidSaltError:
+        raise HTTPException(status_code=500, detail="Invalid salt")
+    except bcrypt.exceptions.InvalidHashError:
+        raise HTTPException(status_code=500, detail="Invalid hash")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 "-------------------------------------login------------------------------------"
+
 
 # API for user login
 class Login(BaseModel):
@@ -228,7 +217,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 async def login(user_input: Login):
     try:
         # Execute SQL query to fetch user data by username
-        sql = "SELECT * FROM users WHERE username = %s"
+        sql = "SELECT * FROM userss WHERE username = %s"
         mycursor.execute(sql, (user_input.username,))
         user = mycursor.fetchone()
 
@@ -304,7 +293,7 @@ async def logout():
 async def get_user(user_id: int):
     try:
         # Execute SQL query to fetch user data by user_id
-        sql = "SELECT * FROM userss WHERE id = %s"
+        sql = "SELECT * FROM users WHERE id = %s"
         mycursor.execute(sql, (user_id,))
         user = mycursor.fetchone()
 

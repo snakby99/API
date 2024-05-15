@@ -146,63 +146,36 @@ async def translate_english_to_thai(request: TranslationRequest):
 
 "---------------------------------------------------------register------------------------------------------"
 # API for user registration
-
-import os
-import bcrypt
-from fastapi import FastAPI, UploadFile, File, HTTPException
-from pydantic import BaseModel
-from typing import Any
-
-app = FastAPI()
-
-UPLOAD_FOLDER = "./image_user"
-
 class UserRegistration(BaseModel):
     firstname: str
     lastname: str
     username: str
     password: str
     phone: str
-    picture: UploadFile
+    picture: str
 
 @app.post("/register/")
-async def register_user(firstname: str, lastname: str, username: str, password: str, phone: str, file: UploadFile = File(...)):
+async def register_user(user: UserRegistration):
     try:
         # Hash the password with bcrypt
-        salt = bcrypt.gensalt()
-        hashed_password = bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
+        hashed_password = bcrypt.hash(user.password)
 
-        # Ensure the upload folder exists
-        if not os.path.exists(UPLOAD_FOLDER):
-            os.makedirs(UPLOAD_FOLDER)
-
-        # Get the filename
-        filename = file.filename
-
-        # Create the file path
-        file_path = os.path.join(UPLOAD_FOLDER, filename)
-
-        # Write the file to disk
-        with open(file_path, "wb") as f:
-            f.write(await file.read())
-
-        # Insert user data into the database with hashed password and picture path
+        # Insert user data into the database with hashed password
         sql = "INSERT INTO users (firstname, lastname, username, password, phone, picture) VALUES (%s, %s, %s, %s, %s, %s)"
-        val = (firstname, lastname, username, hashed_password, phone, file_path)
+        val = (user.firstname, user.lastname, user.username, hashed_password, user.phone, user.picture)
         mycursor.execute(sql, val)
         mydb.commit()
 
-        # Return a success message
-        return {"message": "User registered successfully", "picture_path": file_path}
+        return {"message": "User registered successfully"}
+    except ImportError:
+        raise HTTPException(status_code=500, detail="bcrypt module not found")
     except bcrypt.exceptions.InvalidSaltError:
         raise HTTPException(status_code=500, detail="Invalid salt")
     except bcrypt.exceptions.InvalidHashError:
         raise HTTPException(status_code=500, detail="Invalid hash")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
 "-------------------------------------login------------------------------------"
-
 
 # API for user login
 class Login(BaseModel):
@@ -306,7 +279,7 @@ async def logout():
 async def get_user(user_id: int):
     try:
         # Execute SQL query to fetch user data by user_id
-        sql = "SELECT * FROM users WHERE id = %s"
+        sql = "SELECT * FROM userss WHERE id = %s"
         mycursor.execute(sql, (user_id,))
         user = mycursor.fetchone()
 

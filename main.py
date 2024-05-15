@@ -1,7 +1,8 @@
-from fastapi import FastAPI, HTTPException, Depends, APIRouter, status ,File, UploadFile,Form
+from fastapi import FastAPI, HTTPException, Depends, APIRouter, status ,File, UploadFile
 from pydantic import BaseModel, Field
 import psycopg2
 import re
+import bcrypt
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 from googletrans import Translator
@@ -13,7 +14,6 @@ from datetime import datetime, timezone
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 from pydantic import BaseModel
-import bcrypt
 from passlib.hash import bcrypt
 from typing import List
 import jwt
@@ -158,17 +158,10 @@ class UserRegistration(BaseModel):
     picture: UploadFile
 
 @app.post("/register/")
-async def register_user(
-    firstname: str = Form(...),
-    lastname: str = Form(...),
-    username: str = Form(...),
-    password: str = Form(...),
-    phone: str = Form(...),
-    file: UploadFile = File(...)
-):
+async def register_user(firstname: str, lastname: str, username: str, password: str, phone: str, file: UploadFile = File(...)):
     try:
         # Hash the password with bcrypt
-        hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+        hashed_password = bcrypt.hash(password)
 
         # Get the filename
         filename = file.filename
@@ -178,21 +171,20 @@ async def register_user(
 
         # Write the file to disk
         with open(file_path, "wb") as f:
-            f.write(await file.read())
+            f.write(file.file.read())
 
         # Insert user data into the database with hashed password and picture path
-        sql = "INSERT INTO users (firstname, lastname, username, password, phone, picture) VALUES (%s, %s, %s, %s, %s, %s)"
-        val = (firstname, lastname, username, hashed_password.decode('utf-8'), phone, file_path)
+        sql = "INSERT INTO userss (firstname, lastname, username, password, phone, picture) VALUES (%s, %s, %s, %s, %s, %s)"
+        val = (firstname, lastname, username, hashed_password, phone, file_path)
         mycursor.execute(sql, val)
         mydb.commit()
-
-        return {"message": f"User registered successfully. Picture path: {file_path}"}
+        return f"User registered successfully. Picture path: {file_path}"
     except bcrypt.exceptions.InvalidSaltError:
         raise HTTPException(status_code=500, detail="Invalid salt")
     except bcrypt.exceptions.InvalidHashError:
         raise HTTPException(status_code=500, detail="Invalid hash")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
 "-------------------------------------login------------------------------------"
 
 

@@ -156,8 +156,6 @@ class UserRegistration(BaseModel):
     password: str
     phone: str
 
-
-
 @app.post("/register/")
 async def register_user(firstname: str = Form(...), lastname: str = Form(...), 
                         username: str = Form(...), password: str = Form(...), 

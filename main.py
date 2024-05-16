@@ -105,6 +105,24 @@ dataset = {
                 ],
 }
 
+"----------------------------------------------translate------------------------------------------"
+class TranslationRequest(BaseModel):
+    text: str
+
+class TranslationResponse(BaseModel):
+    translated_text: str
+
+@app.post("/translate/th-en/")
+async def translate_thai_to_english(request: TranslationRequest):
+    translated = translator.translate(request.text, src='th', dest='en')
+    return {"translated_text": translated.text}
+
+@app.post("/translate/en-th/")
+async def translate_english_to_thai(request: TranslationRequest):
+    translated = translator.translate(request.text, src='en', dest='th')
+    return {"translated_text": translated.text}
+
+
 "---------------------------------------------search------------------------------------------"
 
 # API เพื่อค้นหาอาหารจากชื่อ
@@ -126,22 +144,6 @@ async def search_shop(shop_name: str):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
     
-"----------------------------------------------translate------------------------------------------"
-class TranslationRequest(BaseModel):
-    text: str
-
-class TranslationResponse(BaseModel):
-    translated_text: str
-
-@app.post("/translate/th-en/")
-async def translate_thai_to_english(request: TranslationRequest):
-    translated = translator.translate(request.text, src='th', dest='en')
-    return {"translated_text": translated.text}
-
-@app.post("/translate/en-th/")
-async def translate_english_to_thai(request: TranslationRequest):
-    translated = translator.translate(request.text, src='en', dest='th')
-    return {"translated_text": translated.text}
 
 
 "---------------------------------------------------------register------------------------------------------"

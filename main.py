@@ -181,14 +181,15 @@ async def register_user(firstname: str = Form(...), lastname: str = Form(...),
         val = (firstname, lastname, username, hashed_password, phone, file_path)
         mycursor.execute(sql, val)
         mydb.commit()
-        return f"User registered successfully. Picture path: {file_path}"
+        return f"User registered successfully. Picture path: {file_path}, firstname: {firstname}, lastname: {lastname},username: {username},hashed_password:{hashed_password}" 
+            
     except bcrypt.exceptions.InvalidSaltError:
         raise HTTPException(status_code=500, detail="Invalid salt")
     except bcrypt.exceptions.InvalidHashError:
         raise HTTPException(status_code=500, detail="Invalid hash")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-"-------------------------------------login------------------------------------"
+"-------------------------------------login----------------------------------- -"
 
 
 # API for user login
@@ -217,7 +218,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 async def login(user_input: Login):
     try:
         # Execute SQL query to fetch user data by username
-        sql = "SELECT * FROM userss WHERE username = %s"
+        sql = "SELECT * FROM users WHERE username = %s"
         mycursor.execute(sql, (user_input.username,))
         user = mycursor.fetchone()
 

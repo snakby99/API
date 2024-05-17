@@ -26,6 +26,17 @@ import shutil
 
 # Initialize FastAPI app
 app = FastAPI()
+origins = [
+    "http://localhost:5173"
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 translator = Translator()
 
 # Connect to PostgreSQL database
@@ -58,13 +69,7 @@ class Food(BaseModel):
             self.Food_element = self.Food_element.replace(invalid_char, valid_char)
 
 # Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
 
 "---------------------------------------------data set------------------------------------------"
 

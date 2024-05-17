@@ -25,9 +25,10 @@ from flask_cors import CORS
 
 # Initialize FastAPI app
 app = FastAPI()
-translator = Translator()
 
-origins = ["*"]
+origins = [
+    "http://localhost:5173",
+]
 
 app.add_middleware(
     CORSMiddleware,
@@ -36,6 +37,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+translator = Translator()
+
+
 
 # Connect to PostgreSQL database
 mydb = psycopg2.connect(

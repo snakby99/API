@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, APIRouter, status ,File, UploadFile
+from fastapi import FastAPI, HTTPException, Depends, APIRouter, status ,File, UploadFile,Form
 from pydantic import BaseModel, Field
 import psycopg2
 import re
@@ -612,7 +612,38 @@ def find_matching_words(input_text):
 
     return matched_words
 "---------------------------------------------hide food----------------------------------------------"
+UPLOAD_FOLDER = "./image_user"
 
+@app.post("/upload_image/")
+async def upload_image(
+    food_picture: UploadFile = File(...),
+    Food_name: str = Form(...),
+    Food_element: str = Form(...),
+    Food_price: float = Form(...)
+):
+    try:
+        # Get the filename
+        filename = food_picture.filename
+
+        # Create the file path
+        file_path = os.path.join(UPLOAD_FOLDER, filename)
+
+        # Write the file to disk
+        with open(file_path, "wb") as f:
+            f.write(await food_picture.read())
+
+        # Insert food data into the database
+        sql = """
+        INSERT INTO food (Food_name, Food_element, Food_price, Food_picture)
+        VALUES (%s, %s, %s, %s)
+        """
+        val = (Food_name, Food_element, Food_price, file_path)
+        mycursor.execute(sql, val)
+        mydb.commit()
+
+        return {"message": "Food data added successfully", "picture_path": file_path}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 "---------------------------------------------get food----------------------------------------------"
 # Add method to retrieve food names and IDs from the database
 def get_food_data():

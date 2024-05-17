@@ -1,10 +1,10 @@
-from fastapi import FastAPI, HTTPException, Depends, APIRouter, status ,File, UploadFile,Form,Query
+from fastapi import FastAPI, HTTPException, Depends, APIRouter, status ,File, UploadFile
 from pydantic import BaseModel, Field
 import psycopg2
 import re
 import bcrypt
 from fastapi.middleware.cors import CORSMiddleware
-from typing  import Optional
+from typing import Optional
 from googletrans import Translator
 from datetime import datetime, timedelta
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -13,34 +13,20 @@ from datetime import datetime, timedelta
 from datetime import datetime, timezone
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
+from pydantic import BaseModel
 from passlib.hash import bcrypt
 from typing import List
 import jwt
 from fastapi.responses import JSONResponse
+from fastapi import Query
+
 import os
 import shutil
-from flask import Flask
-from flask_cors import CORS
 
 
 # Initialize FastAPI app
 app = FastAPI()
-
-origins = [
-    "http://localhost:5173",
-]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 translator = Translator()
-
-
 
 # Connect to PostgreSQL database
 mydb = psycopg2.connect(
@@ -50,6 +36,14 @@ mydb = psycopg2.connect(
     database="Project"
 )
 mycursor = mydb.cursor()
+
+# mydb = pymysql.connect(
+#     host="localhost",
+#     user="root",
+#     password="",
+#     database="Project"
+# )
+# mycursor = mydb.cursor()
 
 # Define Pydantic BaseModel for Food
 class Food(BaseModel):
@@ -72,6 +66,13 @@ class Food(BaseModel):
             self.Food_element = self.Food_element.replace(invalid_char, valid_char)
 
 # Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["*"],
+)
 
 "---------------------------------------------data set------------------------------------------"
 
@@ -112,24 +113,6 @@ dataset = {
                 ],
 }
 
-"----------------------------------------------translate------------------------------------------"
-class TranslationRequest(BaseModel):
-    text: str
-
-class TranslationResponse(BaseModel):
-    translated_text: str
-
-@app.post("/translate/th-en/")
-async def translate_thai_to_english(request: TranslationRequest):
-    translated = translator.translate(request.text, src='th', dest='en')
-    return {"translated_text": translated.text}
-
-@app.post("/translate/en-th/")
-async def translate_english_to_thai(request: TranslationRequest):
-    translated = translator.translate(request.text, src='en', dest='th')
-    return {"translated_text": translated.text}
-
-
 "---------------------------------------------search------------------------------------------"
 
 # API เพื่อค้นหาอาหารจากชื่อ
@@ -151,44 +134,49 @@ async def search_shop(shop_name: str):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
     
+"----------------------------------------------translate------------------------------------------"
+class TranslationRequest(BaseModel):
+    text: str
+
+class TranslationResponse(BaseModel):
+    translated_text: str
+
+@app.post("/translate/th-en/")
+async def translate_thai_to_english(request: TranslationRequest):
+    translated = translator.translate(request.text, src='th', dest='en')
+    return {"translated_text": translated.text}
+
+@app.post("/translate/en-th/")
+async def translate_english_to_thai(request: TranslationRequest):
+    translated = translator.translate(request.text, src='en', dest='th')
+    return {"translated_text": translated.text}
 
 
 "---------------------------------------------------------register------------------------------------------"
-UPLOAD_FOLDER = "./image_user"
-
+# API for user registration
 class UserRegistration(BaseModel):
     firstname: str
     lastname: str
     username: str
     password: str
     phone: str
-
-
+    picture: str
 
 @app.post("/register/")
-async def register_user(firstname: str = Form(...), lastname: str = Form(...), 
-                        username: str = Form(...), password: str = Form(...), 
-                        phone: str = Form(...), picture: UploadFile = File(...)):
+async def register_user(user: UserRegistration):
     try:
         # Hash the password with bcrypt
-        hashed_password = bcrypt.hash(password)
+        hashed_password = bcrypt.hash(user.password)
 
-        # Get the filename
-        filename = picture.filename
-
-        # Create the file path
-        file_path = os.path.join(UPLOAD_FOLDER, filename)
-
-        # Write the file to disk
-        with open(file_path, "wb") as f:
-            f.write(await picture.read())
-
-        # Insert user data into the database with hashed password and picture path
+        # Insert user data into the database with hashed password
         sql = "INSERT INTO userss (firstname, lastname, username, password, phone, picture) VALUES (%s, %s, %s, %s, %s, %s)"
-        val = (firstname, lastname, username, hashed_password, phone, file_path)
+        val = (user.firstname, user.lastname, user.username, hashed_password, user.phone, user.picture)
         mycursor.execute(sql, val)
         mydb.commit()
-        return f"User registered successfully. Picture path: {file_path}"
+
+        return {"message": "User registered successfully"}
+    except ImportError:
+        raise HTTPException(status_code=500, detail="bcrypt module not found")
     except bcrypt.exceptions.InvalidSaltError:
         raise HTTPException(status_code=500, detail="Invalid salt")
     except bcrypt.exceptions.InvalidHashError:
@@ -299,14 +287,14 @@ async def logout():
 async def get_user(user_id: int):
     try:
         # Execute SQL query to fetch user data by user_id
-        sql = "SELECT * FROM userss WHERE user_id = %s"
+        sql = "SELECT * FROM userss WHERE id = %s"
         mycursor.execute(sql, (user_id,))
         user = mycursor.fetchone()
 
         if user:
             # Return user information
             user_info = {
-                "user_id": user[0],
+                "id": user[0],
                 "firstname": user[1],
                 "lastname": user[2],
                 "username": user[3],
@@ -788,5 +776,8 @@ async def delete_food_from_shop(food_id: int, credentials: HTTPAuthorizationCred
         return {"message": "Food data deleted successfully"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-    
-    #
+
+
+ 
+
+

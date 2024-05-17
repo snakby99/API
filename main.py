@@ -4,7 +4,7 @@ import psycopg2
 import re
 import bcrypt
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Optional
+from pip  import Optional
 from googletrans import Translator
 from datetime import datetime, timedelta
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -17,7 +17,7 @@ from passlib.hash import bcrypt
 from typing import List
 import jwt
 from fastapi.responses import JSONResponse
-import aiofiles
+
 import os
 import shutil
 from flask import Flask

@@ -4,7 +4,7 @@ import psycopg2
 import re
 import bcrypt
 from fastapi.middleware.cors import CORSMiddleware
-from pip  import Optional
+from typing  import Optional
 from googletrans import Translator
 from datetime import datetime, timedelta
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -17,7 +17,6 @@ from passlib.hash import bcrypt
 from typing import List
 import jwt
 from fastapi.responses import JSONResponse
-
 import os
 import shutil
 from flask import Flask
@@ -28,7 +27,7 @@ from flask_cors import CORS
 app = FastAPI()
 translator = Translator()
 
-origins = ["http://localhost:5173"]
+origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -108,6 +107,24 @@ dataset = {
                 ],
 }
 
+"----------------------------------------------translate------------------------------------------"
+class TranslationRequest(BaseModel):
+    text: str
+
+class TranslationResponse(BaseModel):
+    translated_text: str
+
+@app.post("/translate/th-en/")
+async def translate_thai_to_english(request: TranslationRequest):
+    translated = translator.translate(request.text, src='th', dest='en')
+    return {"translated_text": translated.text}
+
+@app.post("/translate/en-th/")
+async def translate_english_to_thai(request: TranslationRequest):
+    translated = translator.translate(request.text, src='en', dest='th')
+    return {"translated_text": translated.text}
+
+
 "---------------------------------------------search------------------------------------------"
 
 # API เพื่อค้นหาอาหารจากชื่อ
@@ -129,22 +146,6 @@ async def search_shop(shop_name: str):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
     
-"----------------------------------------------translate------------------------------------------"
-class TranslationRequest(BaseModel):
-    text: str
-
-class TranslationResponse(BaseModel):
-    translated_text: str
-
-@app.post("/translate/th-en/")
-async def translate_thai_to_english(request: TranslationRequest):
-    translated = translator.translate(request.text, src='th', dest='en')
-    return {"translated_text": translated.text}
-
-@app.post("/translate/en-th/")
-async def translate_english_to_thai(request: TranslationRequest):
-    translated = translator.translate(request.text, src='en', dest='th')
-    return {"translated_text": translated.text}
 
 
 "---------------------------------------------------------register------------------------------------------"

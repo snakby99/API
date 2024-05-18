@@ -3,7 +3,6 @@ from pydantic import BaseModel, Field
 import psycopg2
 import re
 import bcrypt
-from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 from googletrans import Translator
 from datetime import datetime, timedelta
@@ -25,21 +24,15 @@ import shutil
 from flask import Flask
 from flask_cors import CORS
 
+app = Flask(__name__)
+cors = CORS(app, resources={r"/api/*": {"origins": "*"}})
+
 # Initialize FastAPI app
 app = FastAPI()
 
-app = Flask(__name__)
-CORS(app)
 
+ 
 
-# origins =["http://127.0.0.1:8000", "http://localhost:5173"]
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=["*"],
-#     allow_credentials=True,
-#     allow_methods=["*"],
-#     allow_header=["*"])
-    
 translator = Translator()
 
 # Connect to PostgreSQL database

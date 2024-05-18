@@ -22,24 +22,25 @@ from fastapi import Query
 import aiofiles
 import os
 import shutil
-
+from flask import Flask
+from flask_cors import CORS
 
 # Initialize FastAPI app
 app = FastAPI()
 
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app = Flask(__name__)
+CORS(app)
 
 
+# origins =["http://127.0.0.1:8000", "http://localhost:5173"]
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=["*"],
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_header=["*"])
+    
 translator = Translator()
-
-
 
 # Connect to PostgreSQL database
 mydb = psycopg2.connect(
@@ -109,7 +110,6 @@ dataset = {
                 "เนยสด","ซอสสเต๊ก","นมสด",
                 ],
 }
-
 
 UPLOAD_FOLDER = "./image_user"
 

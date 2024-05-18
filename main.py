@@ -26,7 +26,20 @@ import shutil
 
 # Initialize FastAPI app
 app = FastAPI()
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
 translator = Translator()
+
+
 
 # Connect to PostgreSQL database
 mydb = psycopg2.connect(
@@ -57,14 +70,6 @@ class Food(BaseModel):
         for invalid_char, valid_char in invalid_chars.items():
             self.Food_element = self.Food_element.replace(invalid_char, valid_char)
 
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 "---------------------------------------------data set------------------------------------------"
 
@@ -104,6 +109,49 @@ dataset = {
                 "เนยสด","ซอสสเต๊ก","นมสด",
                 ],
 }
+
+
+UPLOAD_FOLDER = "./image_user"
+
+class UserRegistration(BaseModel):
+    firstname: str
+    lastname: str
+    username: str
+    password: str
+    phone: str
+
+app = FastAPI()
+
+@app.post("/register/")
+async def register_user(firstname: str = Form(...), lastname: str = Form(...), 
+                        username: str = Form(...), password: str = Form(...), 
+                        phone: str = Form(...), picture: UploadFile = File(...)):
+    try:
+        # Hash the password with bcrypt
+        hashed_password = bcrypt.hash(password)
+
+        # Get the filename
+        filename = picture.filename
+
+        # Create the file path
+        file_path = os.path.join(UPLOAD_FOLDER, filename)
+
+        # Write the file to disk
+        with open(file_path, "wb") as f:
+            f.write(await picture.read())
+
+        # Insert user data into the database with hashed password and picture path
+        sql = "INSERT INTO userss (firstname, lastname, username, password, phone, picture) VALUES (%s, %s, %s, %s, %s, %s)"
+        val = (firstname, lastname, username, hashed_password, phone, file_path)
+        mycursor.execute(sql, val)
+        mydb.commit()
+        return f"User registered successfully. Picture path: {file_path}"
+    except bcrypt.exceptions.InvalidSaltError:
+        raise HTTPException(status_code=500, detail="Invalid salt")
+    except bcrypt.exceptions.InvalidHashError:
+        raise HTTPException(status_code=500, detail="Invalid hash")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 "---------------------------------------------search------------------------------------------"
 
@@ -146,36 +194,9 @@ async def translate_english_to_thai(request: TranslationRequest):
 
 "---------------------------------------------------------register------------------------------------------"
 # API for user registration
-class UserRegistration(BaseModel):
-    firstname: str
-    lastname: str
-    username: str
-    password: str
-    phone: str
-    picture: str
 
-@app.post("/register/")
-async def register_user(user: UserRegistration):
-    try:
-        # Hash the password with bcrypt
-        hashed_password = bcrypt.hash(user.password)
-
-        # Insert user data into the database with hashed password
-        sql = "INSERT INTO userss (firstname, lastname, username, password, phone, picture) VALUES (%s, %s, %s, %s, %s, %s)"
-        val = (user.firstname, user.lastname, user.username, hashed_password, user.phone, user.picture)
-        mycursor.execute(sql, val)
-        mydb.commit()
-
-        return {"message": "User registered successfully"}
-    except ImportError:
-        raise HTTPException(status_code=500, detail="bcrypt module not found")
-    except bcrypt.exceptions.InvalidSaltError:
-        raise HTTPException(status_code=500, detail="Invalid salt")
-    except bcrypt.exceptions.InvalidHashError:
-        raise HTTPException(status_code=500, detail="Invalid hash")
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
 "-------------------------------------login------------------------------------"
+
 
 # API for user login
 class Login(BaseModel):
@@ -279,7 +300,7 @@ async def logout():
 async def get_user(user_id: int):
     try:
         # Execute SQL query to fetch user data by user_id
-        sql = "SELECT * FROM userss WHERE id = %s"
+        sql = "SELECT * FROM users WHERE id = %s"
         mycursor.execute(sql, (user_id,))
         user = mycursor.fetchone()
 
@@ -612,38 +633,7 @@ def find_matching_words(input_text):
 
     return matched_words
 "---------------------------------------------hide food----------------------------------------------"
-UPLOAD_FOLDER = "./image_user"
 
-@app.post("/upload_image/")
-async def upload_image(
-    food_picture: UploadFile = File(...),
-    Food_name: str = Form(...),
-    Food_element: str = Form(...),
-    Food_price: float = Form(...)
-):
-    try:
-        # Get the filename
-        filename = food_picture.filename
-
-        # Create the file path
-        file_path = os.path.join(UPLOAD_FOLDER, filename)
-
-        # Write the file to disk
-        with open(file_path, "wb") as f:
-            f.write(await food_picture.read())
-
-        # Insert food data into the database
-        sql = """
-        INSERT INTO food (Food_name, Food_element, Food_price, Food_picture)
-        VALUES (%s, %s, %s, %s)
-        """
-        val = (Food_name, Food_element, Food_price, file_path)
-        mycursor.execute(sql, val)
-        mydb.commit()
-
-        return {"message": "Food data added successfully", "picture_path": file_path}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
 "---------------------------------------------get food----------------------------------------------"
 # Add method to retrieve food names and IDs from the database
 def get_food_data():
@@ -799,5 +789,8 @@ async def delete_food_from_shop(food_id: int, credentials: HTTPAuthorizationCred
         return {"message": "Food data deleted successfully"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-    
-    #
+
+
+ 
+
+

@@ -7,7 +7,7 @@ from typing import Optional
 from googletrans import Translator
 from datetime import datetime, timedelta
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import JWTError, jwt
+from jose import JWTError
 from datetime import datetime, timedelta
 from datetime import datetime, timezone
 from fastapi.security import OAuth2PasswordBearer
@@ -18,7 +18,6 @@ from typing import List
 import jwt
 from fastapi.responses import JSONResponse
 from fastapi import Query
-import aiofiles
 import os
 import shutil
 from flask import Flask

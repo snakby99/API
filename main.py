@@ -3,11 +3,12 @@ from pydantic import BaseModel, Field
 import psycopg2
 import re
 import bcrypt
+from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 from googletrans import Translator
 from datetime import datetime, timedelta
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import JWTError
+from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from datetime import datetime, timezone
 from fastapi.security import OAuth2PasswordBearer
@@ -19,20 +20,26 @@ import jwt
 from fastapi.responses import JSONResponse
 from fastapi import Query
 import os
-import shutil
-from flask import Flask
-from flask_cors import CORS
 
-app = Flask(__name__)
-cors = CORS(app, resources={r"/api/*": {"origins": "*"}})
+
 
 # Initialize FastAPI app
 app = FastAPI()
 
+origins = [
+    "http://localhost:5173",
+    # เพิ่ม origins อื่นๆ ที่คุณต้องการเชื่อมต่อได้ที่นี่
+]
 
- 
+# เพิ่ม middleware เพื่อจัดการกับ CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["Authorization", "Content-Type"],
+)
 
-translator = Translator()
 
 # Connect to PostgreSQL database
 mydb = psycopg2.connect(
@@ -63,6 +70,7 @@ class Food(BaseModel):
         for invalid_char, valid_char in invalid_chars.items():
             self.Food_element = self.Food_element.replace(invalid_char, valid_char)
 
+# Add CORS middleware
 
 "---------------------------------------------data set------------------------------------------"
 
@@ -103,6 +111,7 @@ dataset = {
                 ],
 }
 
+
 UPLOAD_FOLDER = "./image_user"
 
 class UserRegistration(BaseModel):
@@ -133,7 +142,7 @@ async def register_user(firstname: str = Form(...), lastname: str = Form(...),
             f.write(await picture.read())
 
         # Insert user data into the database with hashed password and picture path
-        sql = "INSERT INTO userss (firstname, lastname, username, password, phone, picture) VALUES (%s, %s, %s, %s, %s, %s)"
+        sql = "INSERT INTO users (firstname, lastname, username, password, phone, picture) VALUES (%s, %s, %s, %s, %s, %s)"
         val = (firstname, lastname, username, hashed_password, phone, file_path)
         mycursor.execute(sql, val)
         mydb.commit()
@@ -167,6 +176,8 @@ async def search_shop(shop_name: str):
         raise HTTPException(status_code=400, detail=str(e))
     
 "----------------------------------------------translate------------------------------------------"
+translator = Translator()
+
 class TranslationRequest(BaseModel):
     text: str
 

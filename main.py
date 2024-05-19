@@ -20,9 +20,6 @@ import jwt
 from fastapi.responses import JSONResponse
 from fastapi import Query
 import os
-
-
-
 # Initialize FastAPI app
 app = FastAPI()
 
@@ -31,7 +28,7 @@ origins = [
     # เพิ่ม origins อื่นๆ ที่คุณต้องการเชื่อมต่อได้ที่นี่
 ]
 
-# เพิ่ม middleware เพื่อจัดการกับ CORS
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,

@@ -1,28 +1,28 @@
-from fastapi import FastAPI, HTTPException, Depends, APIRouter, status ,File, UploadFile,Form
+from fastapi import FastAPI, HTTPException, Depends, APIRouter, status ,File, UploadFile,exceptions
 from pydantic import BaseModel, Field
 import psycopg2
 import re
-import bcrypt
+import bcrypt 
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 from googletrans import Translator
 from datetime import datetime, timedelta
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import JWTError
+from jose import JWTError, jwt
 from datetime import datetime, timedelta
-from datetime import datetime, timezone
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 from pydantic import BaseModel
 from passlib.hash import bcrypt
 from typing import List
 import jwt
+from datetime import datetime, timedelta
 from fastapi.responses import JSONResponse
 from fastapi import Query
 import aiofiles
 import os
 import shutil
-
+import pymysql
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -36,6 +36,14 @@ mydb = psycopg2.connect(
     database="Project"
 )
 mycursor = mydb.cursor()
+
+# mydb = pymysql.connect(
+#     host="localhost",
+#     user="root",
+#     password="",
+#     database="Project"
+# )
+# mycursor = mydb.cursor()
 
 # Define Pydantic BaseModel for Food
 class Food(BaseModel):
@@ -62,7 +70,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -133,15 +141,27 @@ class TranslationRequest(BaseModel):
 class TranslationResponse(BaseModel):
     translated_text: str
 
-@app.post("/translate/th-en/")
+@app.post("/translate/th-en/", response_model=TranslationResponse)
 async def translate_thai_to_english(request: TranslationRequest):
-    translated = translator.translate(request.text, src='th', dest='en')
-    return {"translated_text": translated.text}
+    try:
+        translated = translator.translate(request.text, src='th', dest='en')
+        if translated is None:
+            raise ValueError("Translation result is None.")
+        translated_text = translated.text
+        return {"translated_text": translated_text}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Translation error: {str(e)}")
 
-@app.post("/translate/en-th/")
+@app.post("/translate/en-th/", response_model=TranslationResponse)
 async def translate_english_to_thai(request: TranslationRequest):
-    translated = translator.translate(request.text, src='en', dest='th')
-    return {"translated_text": translated.text}
+    try:
+        translated = translator.translate(request.text, src='en', dest='th')
+        if translated is None:
+            raise ValueError("Translation result is None.")
+        translated_text = translated.text
+        return {"translated_text": translated_text}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Translation error: {str(e)}")
 
 
 "---------------------------------------------------------register------------------------------------------"
@@ -175,6 +195,8 @@ async def register_user(user: UserRegistration):
         raise HTTPException(status_code=500, detail="Invalid hash")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
 "-------------------------------------login------------------------------------"
 
 # API for user login
@@ -612,38 +634,7 @@ def find_matching_words(input_text):
 
     return matched_words
 "---------------------------------------------hide food----------------------------------------------"
-UPLOAD_FOLDER = "./image_user"
 
-@app.post("/upload_image/")
-async def upload_image(
-    food_picture: UploadFile = File(...),
-    Food_name: str = Form(...),
-    Food_element: str = Form(...),
-    Food_price: float = Form(...)
-):
-    try:
-        # Get the filename
-        filename = food_picture.filename
-
-        # Create the file path
-        file_path = os.path.join(UPLOAD_FOLDER, filename)
-
-        # Write the file to disk
-        with open(file_path, "wb") as f:
-            f.write(await food_picture.read())
-
-        # Insert food data into the database
-        sql = """
-        INSERT INTO food (Food_name, Food_element, Food_price, Food_picture)
-        VALUES (%s, %s, %s, %s)
-        """
-        val = (Food_name, Food_element, Food_price, file_path)
-        mycursor.execute(sql, val)
-        mydb.commit()
-
-        return {"message": "Food data added successfully", "picture_path": file_path}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
 "---------------------------------------------get food----------------------------------------------"
 # Add method to retrieve food names and IDs from the database
 def get_food_data():
@@ -799,8 +790,6 @@ async def delete_food_from_shop(food_id: int, credentials: HTTPAuthorizationCred
         return {"message": "Food data deleted successfully"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-    
-    #
 
 
  

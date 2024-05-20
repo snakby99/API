@@ -161,7 +161,7 @@ async def register_user(user: UserRegistration):
         hashed_password = bcrypt.hash(user.password)
 
         # Insert user data into the database with hashed password
-        sql = "INSERT INTO userss (firstname, lastname, username, password, phone, picture) VALUES (%s, %s, %s, %s, %s, %s)"
+        sql = "INSERT INTO users (firstname, lastname, username, password, phone, picture) VALUES (%s, %s, %s, %s, %s, %s)"
         val = (user.firstname, user.lastname, user.username, hashed_password, user.phone, user.picture)
         mycursor.execute(sql, val)
         mydb.commit()

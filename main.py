@@ -23,14 +23,14 @@ import os
 
 app = FastAPI()
 
-# origins = [
-#     "http://localhost:5173",
-#     # เพิ่ม origins อื่นๆ ที่คุณต้องการเชื่อมต่อได้ที่นี่
-# ]
+origins = [
+    "*",
+    # เพิ่ม origins อื่นๆ ที่คุณต้องการเชื่อมต่อได้ที่นี่
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

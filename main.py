@@ -20,21 +20,20 @@ import jwt
 from fastapi.responses import JSONResponse
 from fastapi import Query
 import os
-# Initialize FastAPI app
+
 app = FastAPI()
 
-origins = [
-    "http://localhost:5173",
-    # เพิ่ม origins อื่นๆ ที่คุณต้องการเชื่อมต่อได้ที่นี่
-]
-
+# origins = [
+#     "http://localhost:5173",
+#     # เพิ่ม origins อื่นๆ ที่คุณต้องการเชื่อมต่อได้ที่นี่
+# ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 

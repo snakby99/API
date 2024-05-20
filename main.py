@@ -3,7 +3,6 @@ from pydantic import BaseModel, Field
 import psycopg2
 import re
 import bcrypt
-from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 from googletrans import Translator
 from datetime import datetime, timedelta
@@ -20,21 +19,18 @@ import jwt
 from fastapi.responses import JSONResponse
 from fastapi import Query
 import os
+from fastapi.middleware.cors import CORSMiddleware
+
 
 app = FastAPI()
 
-origins = [
-    "http://localhost:5173",  # Frontend URL
-    # Add other allowed origins if needed
-]
-
-# Add the CORS middleware to the FastAPI application
+# Allow all origins (not recommended for production)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,  # List of allowed origins
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # List of allowed HTTP methods, you can specify ["GET", "POST"] etc.
-    allow_headers=["*"],  # List of allowed headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 # Connect to PostgreSQL database
 mydb = psycopg2.connect(

@@ -24,19 +24,18 @@ import os
 app = FastAPI()
 
 origins = [
-    "*",
-    # เพิ่ม origins อื่นๆ ที่คุณต้องการเชื่อมต่อได้ที่นี่
+    "http://localhost:5173",  # Frontend URL
+    # Add other allowed origins if needed
 ]
 
+# Add the CORS middleware to the FastAPI application
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=origins,  # List of allowed origins
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],  # List of allowed HTTP methods, you can specify ["GET", "POST"] etc.
+    allow_headers=["*"],  # List of allowed headers
 )
-
-
 # Connect to PostgreSQL database
 mydb = psycopg2.connect(
     host="localhost",

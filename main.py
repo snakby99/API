@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 import psycopg2
 import re
 import bcrypt
+from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 from googletrans import Translator
 from datetime import datetime, timedelta
@@ -18,20 +19,15 @@ from typing import List
 import jwt
 from fastapi.responses import JSONResponse
 from fastapi import Query
+import aiofiles
 import os
-from fastapi.middleware.cors import CORSMiddleware
+import shutil
 
 
+# Initialize FastAPI app
 app = FastAPI()
+translator = Translator()
 
-# Allow all origins (not recommended for production)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 # Connect to PostgreSQL database
 mydb = psycopg2.connect(
     host="localhost",
@@ -62,6 +58,13 @@ class Food(BaseModel):
             self.Food_element = self.Food_element.replace(invalid_char, valid_char)
 
 # Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["*"],
+)
 
 "---------------------------------------------data set------------------------------------------"
 
@@ -167,8 +170,6 @@ async def search_shop(shop_name: str):
         raise HTTPException(status_code=400, detail=str(e))
     
 "----------------------------------------------translate------------------------------------------"
-translator = Translator()
-
 class TranslationRequest(BaseModel):
     text: str
 

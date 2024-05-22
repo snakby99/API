@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, APIRouter, status ,File, UploadFile,exceptions
+from fastapi import FastAPI, HTTPException, Depends, APIRouter, status ,File, UploadFile,exceptions, Path
 from pydantic import BaseModel, Field
 import psycopg2
 import re
@@ -23,7 +23,7 @@ import aiofiles
 import os
 import shutil
 import pymysql
-
+import httpx
 # Initialize FastAPI app
 app = FastAPI()
 translator = Translator()
@@ -162,7 +162,30 @@ async def translate_english_to_thai(request: TranslationRequest):
         return {"translated_text": translated_text}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Translation error: {str(e)}")
+    
+    "-----------------------------------------------translate v2---------------------------------------------------"
 
+@app.get("/translate/{from_lang}-{to_lang}/")
+async def translate_text(
+    from_lang: str = Path(..., title="Source language (ISO 639-1 code)"),
+    to_lang: str = Path(..., title="Target language (ISO 639-1 code)"),
+    sentences: str = Query(..., title="Sentences to translate")
+):
+    # Make sure the languages are in the correct format
+    from_lang = from_lang.lower()
+    to_lang = to_lang.lower()
+    
+    # Define the Google Translate endpoint
+    endpoint = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl={from_lang}&tl={to_lang}&dt=t&ie=UTF-8&oe=UTF-8&q={sentences}"
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.get(endpoint)
+        if response.status_code == 200:
+            json_text = response.json()
+            translated_text = json_text[0][0][0]
+            return {"translated_text": translated_text}
+        else:
+            return {"error": "Translation failed"}
 
 "---------------------------------------------------------register------------------------------------------"
 # API for user registration

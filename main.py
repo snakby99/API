@@ -262,7 +262,7 @@ async def login(user_input: Login):
                 # Generate JWT token
                 token = create_jwt_token(user[0], user[1], user[2], user[3], user[4], user[5], user[6])
                 # Return additional user information
-                return {"message": "Login successful", "token": token, "username": user[3], "picture": user[6], "user_id": user[0]}
+                return {"message": "Login successful", "token": token, "username": user[3], "picture": user[6]}
             else:
                 raise HTTPException(status_code=401, detail="Invalid username or password")
         else:
@@ -482,16 +482,13 @@ class ShopInfo(BaseModel):
     food_price: str
     food_id: str
     food_picture: str
-    user_id: int  # Add user_id here
 
 @app.get("/shops/", response_model=List[ShopInfo])
 async def get_all_shops():
     try:
         # Execute SQL query to fetch all shop data
         sql = """
-            SELECT s.shop_id, s.shop_name, s.shop_location, s.shop_phone, s.shop_time,
-                   s.shop_picture, s.shop_text, s.user_id,  -- Add user_id here
-                   f.Food_name, f.Food_price, f.Food_id, f.Food_picture
+            SELECT s.*, f.Food_name, f.Food_price ,f.Food_id ,f.Food_picture
             FROM shop s
             LEFT JOIN food f ON s.shop_id = f.shop_id
         """
@@ -510,7 +507,6 @@ async def get_all_shops():
                     shop_time=shop_record[4],
                     shop_picture=shop_record[5],
                     shop_text=shop_record[6],
-                    user_id=shop_record[7],  # Assign user_id here
                     food_name=str(shop_record[8]) if shop_record[8] is not None else "",  
                     food_price=str(shop_record[9]) if shop_record[9] is not None else "",
                     food_id=str(shop_record[10]) if shop_record[10] is not None else "",
@@ -524,28 +520,8 @@ async def get_all_shops():
         raise HTTPException(status_code=500, detail=str(e))
 "-------------------------------edit shop-------------------------------"
 # API for editing shop data
-logged_in_users = {1: "user1", 2: "user2"}  # user_id: username
-
-# Pydantic model for the shop data
-class ShopData(BaseModel):
-    shop_name: str
-    shop_location: str
-    shop_phone: str
-    shop_time: str
-    shop_picture: str
-    shop_type: str
-
-def get_user_id_from_token(token: str) -> int:
-    # Dummy function to get user_id from token
-    # In reality, you should decode the token and extract the user_id
-    return 1 if token == "valid_token" else 0
-
 @app.put("/edit_shop/{shop_id}")
-async def edit_shop(
-    shop_id: int, 
-    updated_shop: ShopData, 
-    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)
-):
+async def edit_shop(shop_id: int, updated_shop: ShopData, credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
     try:
         # Get user id from token
         user_id = get_user_id_from_token(credentials.credentials)
@@ -563,30 +539,16 @@ async def edit_shop(
             raise HTTPException(status_code=404, detail="Shop not found")
 
         # Check if the user is the owner of the shop
-        if existing_shop[7] != user_id:  # Assuming the owner's user_id is in the 8th column
+        if existing_shop[7] != user_id:
             raise HTTPException(status_code=403, detail="Unauthorized to edit this shop")
 
         # Update shop data in the database
-        sql_update_shop = """
-            UPDATE shop 
-            SET shop_name = %s, shop_location = %s, shop_phone = %s, shop_time = %s, shop_picture = %s, shop_type = %s 
-            WHERE shop_id = %s
-        """
-        val = (
-            updated_shop.shop_name, 
-            updated_shop.shop_location, 
-            updated_shop.shop_phone, 
-            updated_shop.shop_time, 
-            updated_shop.shop_picture, 
-            updated_shop.shop_type, 
-            shop_id
-        )
+        sql_update_shop = "UPDATE shop SET shop_name = %s, shop_location = %s, shop_phone = %s, shop_time = %s, shop_picture = %s, shop_text = %s WHERE shop_id = %s"
+        val = (updated_shop.shop_name, updated_shop.shop_location, updated_shop.shop_phone, updated_shop.shop_time, updated_shop.shop_picture, updated_shop.shop_type, shop_id)
         mycursor.execute(sql_update_shop, val)
         mydb.commit()
 
         return {"message": "Shop data updated successfully"}
-    except HTTPException as e:
-        raise e
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

@@ -472,6 +472,7 @@ async def add_shop(shop: ShopData, credentials: HTTPAuthorizationCredentials = D
 "-------------------------------------Show data shop------------------------------------"
 class ShopInfo(BaseModel):
     shop_id: int
+    user_id: int
     shop_name: str
     shop_location: str
     shop_phone: str
@@ -488,7 +489,7 @@ async def get_all_shops():
     try:
         # Execute SQL query to fetch all shop data
         sql = """
-            SELECT s.*, f.Food_name, f.Food_price ,f.Food_id ,f.Food_picture
+            SELECT s.*, f.Food_name, f.Food_price, f.Food_id, f.Food_picture, s.user_id
             FROM shop s
             LEFT JOIN food f ON s.shop_id = f.shop_id
         """
@@ -501,6 +502,7 @@ async def get_all_shops():
             for shop_record in shop_data:
                 shop = ShopInfo(
                     shop_id=shop_record[0],
+                    user_id=shop_record[-1],
                     shop_name=shop_record[1],
                     shop_location=shop_record[2],
                     shop_phone=shop_record[3],

@@ -709,8 +709,12 @@ async def get_food_from_shop(shop_id: int = Query(..., description="The ID of th
 @app.get("/show_all_food/")
 async def show_all_food():
     try:
-        # Fetch all food data with associated shop_id
-        sql_select_food = "SELECT food.*, shop.shop_id FROM food INNER JOIN shop ON food.shop_id = shop.shop_id"
+        # Fetch all food data with associated shop_id and user_id
+        sql_select_food = """
+            SELECT food.*, shop.shop_id, shop.user_id 
+            FROM food 
+            INNER JOIN shop ON food.shop_id = shop.shop_id
+        """
         mycursor.execute(sql_select_food)
         foods = mycursor.fetchall()
 
@@ -723,7 +727,8 @@ async def show_all_food():
                 "Food_element": food[2],
                 "Food_price": food[3],
                 "Food_picture": food[4],
-                "shop_id": food[5],  # Add shop_id from food table
+                "shop_id": food[5],  # shop_id from shop table
+                "user_id": food[6],  # user_id from shop table
                 "food_elements": []
             }
 

@@ -1,8 +1,8 @@
-from fastapi import FastAPI, HTTPException, Depends, APIRouter, status ,File, UploadFile,exceptions, Path
+from fastapi import FastAPI, HTTPException, Depends, APIRouter, status ,File, UploadFile,Form,Path
 from pydantic import BaseModel, Field
 import psycopg2
 import re
-import bcrypt 
+import bcrypt
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 from googletrans import Translator
@@ -10,20 +10,23 @@ from datetime import datetime, timedelta
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
+from datetime import datetime, timezone
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 from pydantic import BaseModel
 from passlib.hash import bcrypt
 from typing import List
 import jwt
-from datetime import datetime, timedelta
 from fastapi.responses import JSONResponse
 from fastapi import Query
 import aiofiles
 import os
 import shutil
-import pymysql
 import httpx
+from pydantic import BaseModel
+from typing import List
+from fastapi import FastAPI, HTTPException
+
 # Initialize FastAPI app
 app = FastAPI()
 translator = Translator()
@@ -36,14 +39,6 @@ mydb = psycopg2.connect(
     database="Project"
 )
 mycursor = mydb.cursor()
-
-# mydb = pymysql.connect(
-#     host="localhost",
-#     user="root",
-#     password="",
-#     database="Project"
-# )
-# mycursor = mydb.cursor()
 
 # Define Pydantic BaseModel for Food
 class Food(BaseModel):
@@ -70,7 +65,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
@@ -141,51 +136,16 @@ class TranslationRequest(BaseModel):
 class TranslationResponse(BaseModel):
     translated_text: str
 
-@app.post("/translate/th-en/", response_model=TranslationResponse)
+@app.post("/translate/th-en/")
 async def translate_thai_to_english(request: TranslationRequest):
-    try:
-        translated = translator.translate(request.text, src='th', dest='en')
-        if translated is None:
-            raise ValueError("Translation result is None.")
-        translated_text = translated.text
-        return {"translated_text": translated_text}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Translation error: {str(e)}")
+    translated = translator.translate(request.text, src='th', dest='en')
+    return {"translated_text": translated.text}
 
-@app.post("/translate/en-th/", response_model=TranslationResponse)
+@app.post("/translate/en-th/")
 async def translate_english_to_thai(request: TranslationRequest):
-    try:
-        translated = translator.translate(request.text, src='en', dest='th')
-        if translated is None:
-            raise ValueError("Translation result is None.")
-        translated_text = translated.text
-        return {"translated_text": translated_text}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Translation error: {str(e)}")
-    
-    "-----------------------------------------------translate v2---------------------------------------------------"
+    translated = translator.translate(request.text, src='en', dest='th')
+    return {"translated_text": translated.text}
 
-@app.get("/translate/{from_lang}-{to_lang}/")
-async def translate_text(
-    from_lang: str = Path(..., title="Source language (ISO 639-1 code)"),
-    to_lang: str = Path(..., title="Target language (ISO 639-1 code)"),
-    sentences: str = Query(..., title="Sentences to translate")
-):
-    # Make sure the languages are in the correct format
-    from_lang = from_lang.lower()
-    to_lang = to_lang.lower()
-    
-    # Define the Google Translate endpoint
-    endpoint = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl={from_lang}&tl={to_lang}&dt=t&ie=UTF-8&oe=UTF-8&q={sentences}"
-    
-    async with httpx.AsyncClient() as client:
-        response = await client.get(endpoint)
-        if response.status_code == 200:
-            json_text = response.json()
-            translated_text = json_text[0][0][0]
-            return {"translated_text": translated_text}
-        else:
-            return {"error": "Translation failed"}
 
 "---------------------------------------------------------register------------------------------------------"
 # API for user registration
@@ -218,8 +178,6 @@ async def register_user(user: UserRegistration):
         raise HTTPException(status_code=500, detail="Invalid hash")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
-
 "-------------------------------------login------------------------------------"
 
 # API for user login
@@ -302,7 +260,8 @@ async def authorize(credentials: HTTPAuthorizationCredentials = Depends(bearer_s
             "message": "Authorization successful",
             "user_id": payload.get("user_id"),
             "username": payload.get("username"),
-            "picture": payload.get("picture")
+            "picture": payload.get("picture"),
+            
         }
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token has expired")
@@ -472,7 +431,7 @@ async def add_shop(shop: ShopData, credentials: HTTPAuthorizationCredentials = D
 "-------------------------------------Show data shop------------------------------------"
 class ShopInfo(BaseModel):
     shop_id: int
-    user_id: int
+    user_id: int       # New field added
     shop_name: str
     shop_location: str
     shop_phone: str
@@ -489,7 +448,8 @@ async def get_all_shops():
     try:
         # Execute SQL query to fetch all shop data
         sql = """
-            SELECT s.*, f.Food_name, f.Food_price, f.Food_id, f.Food_picture, s.user_id
+            SELECT s.shop_id, s.user_id, s.shop_name, s.shop_location, s.shop_phone, s.shop_time, 
+                   s.shop_picture, s.shop_text, f.Food_name, f.Food_price, f.Food_id, f.Food_picture
             FROM shop s
             LEFT JOIN food f ON s.shop_id = f.shop_id
         """
@@ -502,13 +462,13 @@ async def get_all_shops():
             for shop_record in shop_data:
                 shop = ShopInfo(
                     shop_id=shop_record[0],
-                    user_id=shop_record[-1],
-                    shop_name=shop_record[1],
-                    shop_location=shop_record[2],
-                    shop_phone=shop_record[3],
-                    shop_time=shop_record[4],
-                    shop_picture=shop_record[5],
-                    shop_text=shop_record[6],
+                    user_id=shop_record[1],  # Assuming user_id is the second field in the result set
+                    shop_name=shop_record[2],
+                    shop_location=shop_record[3],
+                    shop_phone=shop_record[4],
+                    shop_time=shop_record[5],
+                    shop_picture=shop_record[6],
+                    shop_text=shop_record[7],
                     food_name=str(shop_record[8]) if shop_record[8] is not None else "",  
                     food_price=str(shop_record[9]) if shop_record[9] is not None else "",
                     food_id=str(shop_record[10]) if shop_record[10] is not None else "",
@@ -659,7 +619,38 @@ def find_matching_words(input_text):
 
     return matched_words
 "---------------------------------------------hide food----------------------------------------------"
+UPLOAD_FOLDER = "./image_user"
 
+@app.post("/upload_image/")
+async def upload_image(
+    food_picture: UploadFile = File(...),
+    Food_name: str = Form(...),
+    Food_element: str = Form(...),
+    Food_price: float = Form(...)
+):
+    try:
+        # Get the filename
+        filename = food_picture.filename
+
+        # Create the file path
+        file_path = os.path.join(UPLOAD_FOLDER, filename)
+
+        # Write the file to disk
+        with open(file_path, "wb") as f:
+            f.write(await food_picture.read())
+
+        # Insert food data into the database
+        sql = """
+        INSERT INTO food (Food_name, Food_element, Food_price, Food_picture)
+        VALUES (%s, %s, %s, %s)
+        """
+        val = (Food_name, Food_element, Food_price, file_path)
+        mycursor.execute(sql, val)
+        mydb.commit()
+
+        return {"message": "Food data added successfully", "picture_path": file_path}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 "---------------------------------------------get food----------------------------------------------"
 # Add method to retrieve food names and IDs from the database
 def get_food_data():
@@ -705,7 +696,6 @@ async def get_food_from_shop(shop_id: int = Query(..., description="The ID of th
         raise HTTPException(status_code=400, detail=str(e))
 
 "-------------------------------------Show data food------------------------------------"
-
 @app.get("/show_all_food/")
 async def show_all_food():
     try:
@@ -727,8 +717,8 @@ async def show_all_food():
                 "Food_element": food[2],
                 "Food_price": food[3],
                 "Food_picture": food[4],
-                "shop_id": food[5],  # shop_id from shop table
-                "user_id": food[6],  # user_id from shop table
+                "shop_id": food[5],
+                "user_id": food[6],  # Add user_id from shop table
                 "food_elements": []
             }
 
@@ -745,6 +735,7 @@ async def show_all_food():
         return all_foods
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
 
 "-------------------------------------edit data food------------------------------------"
 # Update food data in the shop
@@ -820,8 +811,31 @@ async def delete_food_from_shop(food_id: int, credentials: HTTPAuthorizationCred
         return {"message": "Food data deleted successfully"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+    
 
 
+"-----------------------------------------------translate v2---------------------------------------------------"
+@app.get("/translate/{from_lang}-{to_lang}/")
+async def translate_text(
+    from_lang: str = Path(..., title="Source language (ISO 639-1 code)"),
+    to_lang: str = Path(..., title="Target language (ISO 639-1 code)"),
+    sentences: str = Query(..., title="Sentences to translate")
+):
+    # Make sure the languages are in the correct format
+    from_lang = from_lang.lower()
+    to_lang = to_lang.lower()
+    
+    # Define the Google Translate endpoint
+    endpoint = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl={from_lang}&tl={to_lang}&dt=t&ie=UTF-8&oe=UTF-8&q={sentences}"
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.get(endpoint)
+        if response.status_code == 200:
+            json_text = response.json()
+            translated_text = json_text[0][0][0]
+            return {"translated_text": translated_text}
+        else:
+            return {"error": "Translation failed"}
  
 
 

@@ -23,6 +23,9 @@ import aiofiles
 import os
 import shutil
 import httpx
+from pydantic import BaseModel
+from typing import List
+from fastapi import FastAPI, HTTPException
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -257,7 +260,8 @@ async def authorize(credentials: HTTPAuthorizationCredentials = Depends(bearer_s
             "message": "Authorization successful",
             "user_id": payload.get("user_id"),
             "username": payload.get("username"),
-            "picture": payload.get("picture")
+            "picture": payload.get("picture"),
+            
         }
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token has expired")
@@ -427,6 +431,7 @@ async def add_shop(shop: ShopData, credentials: HTTPAuthorizationCredentials = D
 "-------------------------------------Show data shop------------------------------------"
 class ShopInfo(BaseModel):
     shop_id: int
+    user_id: int       # New field added
     shop_name: str
     shop_location: str
     shop_phone: str
@@ -443,7 +448,8 @@ async def get_all_shops():
     try:
         # Execute SQL query to fetch all shop data
         sql = """
-            SELECT s.*, f.Food_name, f.Food_price ,f.Food_id ,f.Food_picture
+            SELECT s.shop_id, s.user_id, s.shop_name, s.shop_location, s.shop_phone, s.shop_time, 
+                   s.shop_picture, s.shop_text, f.Food_name, f.Food_price, f.Food_id, f.Food_picture
             FROM shop s
             LEFT JOIN food f ON s.shop_id = f.shop_id
         """
@@ -456,12 +462,13 @@ async def get_all_shops():
             for shop_record in shop_data:
                 shop = ShopInfo(
                     shop_id=shop_record[0],
-                    shop_name=shop_record[1],
-                    shop_location=shop_record[2],
-                    shop_phone=shop_record[3],
-                    shop_time=shop_record[4],
-                    shop_picture=shop_record[5],
-                    shop_text=shop_record[6],
+                    user_id=shop_record[1],  # Assuming user_id is the second field in the result set
+                    shop_name=shop_record[2],
+                    shop_location=shop_record[3],
+                    shop_phone=shop_record[4],
+                    shop_time=shop_record[5],
+                    shop_picture=shop_record[6],
+                    shop_text=shop_record[7],
                     food_name=str(shop_record[8]) if shop_record[8] is not None else "",  
                     food_price=str(shop_record[9]) if shop_record[9] is not None else "",
                     food_id=str(shop_record[10]) if shop_record[10] is not None else "",
@@ -689,12 +696,15 @@ async def get_food_from_shop(shop_id: int = Query(..., description="The ID of th
         raise HTTPException(status_code=400, detail=str(e))
 
 "-------------------------------------Show data food------------------------------------"
-
 @app.get("/show_all_food/")
 async def show_all_food():
     try:
-        # Fetch all food data with associated shop_id
-        sql_select_food = "SELECT food.*, shop.shop_id FROM food INNER JOIN shop ON food.shop_id = shop.shop_id"
+        # Fetch all food data with associated shop_id and user_id
+        sql_select_food = """
+            SELECT food.*, shop.shop_id, shop.user_id 
+            FROM food 
+            INNER JOIN shop ON food.shop_id = shop.shop_id
+        """
         mycursor.execute(sql_select_food)
         foods = mycursor.fetchall()
 
@@ -707,7 +717,8 @@ async def show_all_food():
                 "Food_element": food[2],
                 "Food_price": food[3],
                 "Food_picture": food[4],
-                "shop_id": food[5],  # Add shop_id from food table
+                "shop_id": food[5],
+                "user_id": food[6],  # Add user_id from shop table
                 "food_elements": []
             }
 
@@ -724,6 +735,7 @@ async def show_all_food():
         return all_foods
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
 
 "-------------------------------------edit data food------------------------------------"
 # Update food data in the shop

@@ -147,7 +147,7 @@ async def translate_english_to_thai(request: TranslationRequest):
     return {"translated_text": translated.text}
 
 
-"---------------------------------------------------------register------------------------------------------"
+"-------------------------------------------ควยห--------------register------------------------------------------"
 # API for user registration
 class UserRegistration(BaseModel):
     firstname: str

@@ -27,6 +27,18 @@ from pydantic import BaseModel
 from typing import List
 from fastapi import FastAPI, HTTPException
 
+
+pattern = re.compile(r'your_pattern_here')
+text_to_search = 'your_text_here'
+
+match = pattern.search(text_to_search)  # or pattern.match(text_to_search)
+
+if match:
+    result = match.group()
+    print(result)
+else:
+    print("No match found")
+
 # Initialize FastAPI app
 app = FastAPI()
 translator = Translator()

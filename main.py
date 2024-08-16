@@ -27,6 +27,7 @@ from pydantic import BaseModel
 from typing import List
 from fastapi import FastAPI, HTTPException
 
+#  python -m uvicorn main:app --reload วิธีรัน
 
 pattern = re.compile(r'your_pattern_here')
 text_to_search = 'your_text_here'
